@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import QTableView, QApplication, QHeaderView
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
 from PySide6.QtGui import QColor
-import sys
 import pandas as pd
 
 FORE = 0
@@ -29,6 +28,7 @@ class tabView(QAbstractTableModel):
         self.view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.view.setAlternatingRowColors(True)
         # self.view.setSelectionBehavior(QTableView.SelectRows)
+        self.view.setAutoScroll(False)
         self.__ForeColor = {COLOR_CRIT[FORE]: set(), COLOR_WARN[FORE]: set(), COLOR_INFO[FORE]: set()}
         self.__BackColor = {COLOR_CRIT[BACK]: set(), COLOR_WARN[BACK]: set(), COLOR_INFO[BACK]: set()}
         return
@@ -137,10 +137,10 @@ class tabView(QAbstractTableModel):
 
 if __name__ == '__main__':
 
-    app = QApplication(sys.argv)
+    app = QApplication()
 
     # df = pd.read_csv('iris.csv')
-    dt = pd.to_datetime('2022-04-10', format='%Y/%m/%d')
+    dt = pd.to_datetime('2022-04-10', format=r'%Y/%m/%d')
     # dt = pd.DatetimeIndex(['2022-04-11'])
     # dt = pd.to_datetime('2022-04-10asd', errors='coerce')
     df = pd.DataFrame(data={'Date':dt,'A':[4,3,2,float('nan')],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])

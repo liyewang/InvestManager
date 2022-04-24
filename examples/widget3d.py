@@ -75,7 +75,7 @@ class ApplicationWindow(QMainWindow):
 
         # Left layout
         llayout = QVBoxLayout()
-        rlayout.setContentsMargins(1, 1, 1, 1)
+        llayout.setContentsMargins(1, 1, 1, 1)
         llayout.addWidget(self.canvas, 88)
         llayout.addWidget(QLabel("Azimuth:"), 1)
         llayout.addLayout(self.slider_azim_layout, 5)

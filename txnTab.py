@@ -1,6 +1,7 @@
 import pandas as pd
 from tabView import *
 from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Signal
 import sys
 
 TAG_DT = 'Date'
@@ -297,6 +298,7 @@ class txnTab:
         return self.__tab
 
 class txnTabView(txnTab, tabView):
+    __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         self.__err = ()
         txnTab.__init__(self)
@@ -305,6 +307,7 @@ class txnTabView(txnTab, tabView):
             self.__update(txnTab.table(self))
         else:
             self.__update(data)
+        self.view.scrollToBottom()
         return
 
     def flags(self, index: QModelIndex):
@@ -353,7 +356,7 @@ class txnTabView(txnTab, tabView):
             return True
         return False
 
-    def __error(
+    def show_error(
         self, args: tuple,
         prt: bool | None = True,
         foreColor: bool | None = True,
@@ -418,9 +421,9 @@ class txnTabView(txnTab, tabView):
                     v = sys.exc_info()[1].args
                     if mute and self.isValid(self.__tab.iloc[:-1, :]):
                         if v[0] != 'Date data must be ascending.':
-                            self.__error(v, msgBox=False)
+                            self.show_error(v, msgBox=False)
                     else:
-                        self.__error(v)
+                        self.show_error(v)
                 else:
                     self.__tab = pd.concat([
                         self.__tab,
@@ -430,24 +433,31 @@ class txnTabView(txnTab, tabView):
                 try:
                     self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
                 except:
-                    self.__error(sys.exc_info()[1].args)
+                    self.show_error(sys.exc_info()[1].args)
         tabView.table(self, self.__tab)
+        self.__txn_update.emit()
         self.endResetModel()
         return
 
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:
             self.__update(data)
+            self.view.scrollToBottom()
         return self.__tab
 
     def error(self) -> tuple:
         return self.__err
 
+    def signal(self) -> Signal:
+        return self.__txn_update
+
     def read_csv(self, file: str) -> pd.DataFrame:
         try:
             self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         except:
-            self.__error(sys.exc_info()[1].args)
+            self.show_error(sys.exc_info()[1].args)
+        else:
+            self.view.scrollToBottom()
         return self.__tab
 
 if __name__ == '__main__':
