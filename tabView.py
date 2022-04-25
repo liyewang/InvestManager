@@ -23,7 +23,7 @@ class tabView(QAbstractTableModel):
         self.__tab = data
         self.view = QTableView()
         self.view.setModel(self)
-        self.view.resize(1280, 720)
+        # self.view.resize(1280, 720)
         # self.view.horizontalHeader().setStretchLastSection(True)
         self.view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.view.setAlternatingRowColors(True)

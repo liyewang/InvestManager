@@ -73,10 +73,10 @@ class valTab:
                 row = df.index[-1] + 1
         return
 
-    def code(self) -> str:
+    def get_code(self) -> str:
         return self.__code
 
-    def name(self) -> str:
+    def get_name(self) -> str:
         return self.__name
 
     def table(self, code: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -95,6 +95,8 @@ class valTabView(valTab, tabView):
             self.__tab = valTab.table(self).iloc[:, :COL_TA]
             tabView.__init__(self, self.__tab)
             self.__err_sig.emit(sys.exc_info()[1].args)
+        self.view.setMinimumWidth(500)
+        return
 
     def flags(self, index):
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
@@ -133,7 +135,7 @@ class valTabView(valTab, tabView):
             self.endResetModel()
         return self.__tab
     
-    def signal(self) -> Signal:
+    def get_signal(self) -> Signal:
         return self.__err_sig
 
 
@@ -143,7 +145,7 @@ if __name__ == '__main__':
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     val = valTabView('519697', txn.table())
     val.show()
-    print(val.code())
-    print(val.name())
+    print(val.get_code())
+    print(val.get_name())
     print(val.table())
     app.exec()

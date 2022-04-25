@@ -155,7 +155,7 @@ class txnTab:
         BuyShrExp = 0
         ShrBal = 0
         for col in range(rows):
-            ShrBal = ShrBal + Shr.iat[col]
+            ShrBal += Shr.iat[col]
             if ShrBal < 0:
                 raise ValueError(f'Share balance cannot be negative ({ShrBal})', {(COL_SS, col, 1, 1)})
             elif df.iat[col, COL_SS] > 0:
@@ -168,6 +168,7 @@ class txnTab:
                             AmtMat.iat[row, col] = df.iat[row, COL_BA] * BuyShrExp / BuyShr
                             SelShrRes -= BuyShrExp
                             BuyShrExp = 0
+                            row_0 = row + 1
                         elif SelShrRes == BuyShr - BuyShrExp:
                             AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
                             BuyShrExp = SelShrRes
@@ -181,22 +182,19 @@ class txnTab:
 
         RateMat = pd.Series(index=range(rows), dtype=float)
         RateSz = 0
-        AmtHeadRow = 0
         AmtResPrev = 0
         RatePrev = 0
         for col in df.loc[df.iloc[:, COL_SS] > 0].index:
             Rate = df.iat[col, COL_RR]
-            AmtTailRow = col
             for count in range(self.__MaxCount):
                 if Rate < -1:
                     RateSign = -1
                 else:
                     RateSign = 1
                 AmtRes = df.iat[col, COL_SA]
-                for row in range(AmtHeadRow, AmtTailRow + 1):
+                for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
                     if AmtMat.iat[row, col]:
                         AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
-                        AmtTailRow = row    # Will not change current FOR loop, but find the valid range for the next loop.
                     elif df.iat[row, COL_BA]:
                         break
                 if abs(AmtRes) < self.__MaxAmtResErr:
@@ -213,7 +211,6 @@ class txnTab:
                 raise RuntimeError(f'Cannot find the Rate of Return in {self.__MaxCount} rounds.')
             RateMat.iat[col] = Rate
             RateSz += 1
-            AmtHeadRow = AmtTailRow
         _data.iloc[:, COL_RR] = RateMat
 
         if RateSz == 0:
@@ -223,8 +220,6 @@ class txnTab:
         elif RateSz > 1:
             AmtResPrev = 0
             RatePrev = 0
-            # for idx in df.loc[df.iloc[:, COL_SS] > 0].index:
-            idx = RateMat.loc[~RateMat.isna()].index[-1]
             if pd.isna(self.__avgRate):
                 Rate = 0
             else:
@@ -235,16 +230,13 @@ class txnTab:
                 else:
                     RateSign = 1
                 AmtRes = 0
-                AmtHeadRow = 0
-                for col in range(idx + 1):
-                    if df.iat[col, COL_SS] > 0:
-                        AmtRes += df.iat[col, COL_SA]
-                        for row in range(AmtHeadRow, col + 1):
-                            if AmtMat.iat[row, col] != 0:
-                                AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
-                                AmtHeadRow = row    # Will not change current FOR loop, but find the valid range for the next loop.
-                            elif df.iat[row, COL_BA] != 0:
-                                break
+                for col in df.loc[df.iloc[:, COL_SS] > 0].index:
+                    AmtRes += df.iat[col, COL_SA]
+                    for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
+                        if AmtMat.iat[row, col] != 0:
+                            AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
+                        elif df.iat[row, COL_BA] != 0:
+                            break
                 if abs(AmtRes) < self.__MaxAmtResErr:
                     count = 0
                     break
@@ -307,6 +299,7 @@ class txnTabView(txnTab, tabView):
             self.__update(txnTab.table(self))
         else:
             self.__update(data)
+        self.view.setMinimumWidth(780)
         self.view.scrollToBottom()
         return
 
@@ -356,7 +349,7 @@ class txnTabView(txnTab, tabView):
             return True
         return False
 
-    def show_error(
+    def raise_error(
         self, args: tuple,
         prt: bool | None = True,
         foreColor: bool | None = True,
@@ -421,9 +414,9 @@ class txnTabView(txnTab, tabView):
                     v = sys.exc_info()[1].args
                     if mute and self.isValid(self.__tab.iloc[:-1, :]):
                         if v[0] != 'Date data must be ascending.':
-                            self.show_error(v, msgBox=False)
+                            self.raise_error(v, msgBox=False)
                     else:
-                        self.show_error(v)
+                        self.raise_error(v)
                 else:
                     self.__tab = pd.concat([
                         self.__tab,
@@ -433,7 +426,7 @@ class txnTabView(txnTab, tabView):
                 try:
                     self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
                 except:
-                    self.show_error(sys.exc_info()[1].args)
+                    self.raise_error(sys.exc_info()[1].args)
         tabView.table(self, self.__tab)
         self.__txn_update.emit()
         self.endResetModel()
@@ -445,17 +438,17 @@ class txnTabView(txnTab, tabView):
             self.view.scrollToBottom()
         return self.__tab
 
-    def error(self) -> tuple:
+    def get_error(self) -> tuple:
         return self.__err
 
-    def signal(self) -> Signal:
+    def get_signal(self) -> Signal:
         return self.__txn_update
 
     def read_csv(self, file: str) -> pd.DataFrame:
         try:
             self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         except:
-            self.show_error(sys.exc_info()[1].args)
+            self.raise_error(sys.exc_info()[1].args)
         else:
             self.view.scrollToBottom()
         return self.__tab
