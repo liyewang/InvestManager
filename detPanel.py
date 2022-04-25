@@ -3,6 +3,7 @@ from PySide6.QtCore import Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
+from matplotlib.font_manager import FontProperties
 from pandas import DataFrame
 from txnTab import txnTabView
 from valTab import (
@@ -27,13 +28,10 @@ class detPanel(QMainWindow):
 
         self.__fig = Figure()
         self.__canvas = FigureCanvas(self.__fig)
-        # self.__line = None
         self.__fig.set_canvas(self.__canvas)
         self.__ax = self.__canvas.figure.subplots()
-        # self.__line = self.__ax.plot([1,2,3],[1,2,3], [0], [0], 'ro', [0], [0], 'go', lw=0.5, ms=3)
-        # self.__ax.set(xlim=[super(valTabView, self.__val).table().iloc[-1, 0], super(valTabView, self.__val).table().iloc[0, 0]], ylim=[0,7])
-        # self.__ax.grid()
-        self.__plot(super(valTabView, self.__val).table())
+        self.__font = FontProperties(fname=R'C:\Windows\Fonts\msyh.ttc')
+        self.__plot()
 
         llayout = QVBoxLayout()
         llayout.addWidget(self.__canvas, 6)
@@ -54,7 +52,8 @@ class detPanel(QMainWindow):
         self.__txn.signal().connect(self.__update)
         self.__val.signal().connect(self.__txn_error)
 
-    def __plot(self, tab: DataFrame) -> None:
+    def __plot(self) -> None:
+        tab = super(valTabView, self.__val).table()
         v = tab.iloc[:, VAL_COL_TA] > 0
         txnBA = (
             tab.iloc[:, VAL_COL_DT].loc[v].tolist(),
@@ -66,19 +65,15 @@ class detPanel(QMainWindow):
             tab.iloc[:, VAL_COL_NV].loc[v].tolist(),
         )
         self.__ax.clear()
-        # self.__line[0].set_data(tab.iloc[:, VAL_COL_DT].tolist(), tab.iloc[:, VAL_COL_NV].tolist())
-        # self.__line[0].figure.canvas.draw()
-        # self.__line[1].set_data(txnBA[0], txnBA[1])
-        # self.__line[1].figure.canvas.draw()
-        # self.__line[2].set_data(txnSA[0], txnSA[1])
-        # self.__line[2].figure.canvas.draw()
-        self.__line = self.__ax.plot(
+        self.__ax.plot(
             tab.iloc[:, VAL_COL_DT].tolist(), tab.iloc[:, VAL_COL_NV].tolist(),
             txnBA[0], txnBA[1], 'ro',
             txnSA[0], txnSA[1], 'go',
             lw=0.5,
             ms=3,
         )
+        self.__ax.set(xlabel='Date', ylabel='Net Value')
+        self.__ax.set_title(f'{self.__val.name()} ({self.__val.code()})', fontsize=16, fontproperties=self.__font)
         # self.__ax.margins(0)
         self.__ax.grid(True)
         self.__canvas.draw()
@@ -87,7 +82,7 @@ class detPanel(QMainWindow):
     @Slot()
     def __update(self) -> None:
         self.__val.table(txn=super(txnTabView, self.__txn).table())
-        self.__plot(super(valTabView, self.__val).table())
+        self.__plot()
         return
 
     @Slot()
@@ -104,7 +99,7 @@ if __name__ == '__main__':
     txn = txnTabView()
     val = valTabView()
     det = detPanel(txn, val)
-    det.setMinimumSize(1920, 1080)
+    det.setMinimumSize(1280, 720)
     det.show()
     val.table(code='519697')
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
