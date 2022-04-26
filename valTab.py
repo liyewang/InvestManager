@@ -14,6 +14,8 @@ from txnTab import (
 URL_API = 'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode='
 HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
 
+TAG_DT_RAW = 'fld_enddate'
+
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
 TAG_NV = 'Net Value'
@@ -52,7 +54,7 @@ class valTab:
                     raise ValueError(f'Code does not match ({code_new} is not {code}).')
                 self.__code = code_new
                 self.__name = df.iat[1, 1]
-                self.__tab = df.iloc[2:, 2:5].astype({'fld_enddate':'datetime64[ns]'}).drop_duplicates(ignore_index=True)
+                self.__tab = df.iloc[2:, 2:5].astype({TAG_DT_RAW:'datetime64[ns]'}).drop_duplicates(ignore_index=True).sort_values(TAG_DT_RAW, ascending=False, ignore_index=True)
                 rows = self.__tab.index.size
                 self.__zeros = pd.DataFrame(0., index=range(rows), columns=COL_TAG[COL_HA:])
                 self.__tab = pd.concat([self.__tab, self.__zeros], axis=1)

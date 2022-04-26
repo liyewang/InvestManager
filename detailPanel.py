@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel, QTableWidget
-from PySide6.QtCore import Qt, Slot, QEvent
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout,
+                                QHBoxLayout, QVBoxLayout, QLabel, QTableWidget, QSlider)
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
@@ -34,17 +35,52 @@ class detailPanel(QMainWindow):
         self.setMinimumSize(1280, 720)
         self.__txn = txn
         self.__val = val
+        self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
+        self.__date = self.__tab.iloc[:, VAL_COL_DT].tolist()
+        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean().tolist()
+        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean().tolist()
+        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean().tolist()
+        self.__txn.get_signal().connect(self.__update)
+        self.__val.get_signal().connect(self.__txn_error)
+
+        self.__plot_start = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
+        self.__plot_range = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
+        self.__plot_start.valueChanged.connect(self.__plot_start_update)
+        self.__plot_range.valueChanged.connect(self.__plot_range_update)
+        self.__plot_start_min = QLabel()
+        self.__plot_start_max = QLabel()
+        self.__plot_range_min = QLabel()
+        self.__plot_range_max = QLabel()
+        self.__plot_start_title = QLabel()
+        self.__plot_range_title = QLabel()
+        self.__plot_start_update()
+        self.__plot_range_update()
 
         self.__fig = Figure()
         self.__canvas = FigureCanvas(self.__fig)
         self.__fig.set_canvas(self.__canvas)
         self.__ax = self.__canvas.figure.subplots()
+        self.__ax2 = self.__ax.twinx()
         self.__font = FontProperties(fname=FONT_PATH)
         self.__plot()
 
+        self.__plot_start_layout = QHBoxLayout()
+        self.__plot_start_layout.addWidget(self.__plot_start_min)
+        self.__plot_start_layout.addWidget(self.__plot_start)
+        self.__plot_start_layout.addWidget(self.__plot_start_max)
+
+        self.__plot_range_layout = QHBoxLayout()
+        self.__plot_range_layout.addWidget(self.__plot_range_min)
+        self.__plot_range_layout.addWidget(self.__plot_range)
+        self.__plot_range_layout.addWidget(self.__plot_range_max)
+
         llayout = QVBoxLayout()
-        llayout.addWidget(self.__canvas, 7)
-        llayout.addWidget(self.__txn.view, 3)
+        llayout.addWidget(self.__canvas, 60)
+        llayout.addWidget(self.__plot_start_title, 1)
+        llayout.addLayout(self.__plot_start_layout, 1)
+        llayout.addWidget(self.__plot_range_title, 1)
+        llayout.addLayout(self.__plot_range_layout, 1)
+        llayout.addWidget(self.__txn.view, 30)
 
         self.__stat = QLabel()
         self.__stat.setAlignment(Qt.AlignLeft)
@@ -62,67 +98,139 @@ class detailPanel(QMainWindow):
         layout.addLayout(rlayout, 3)
         # layout.addWidget(self.__val.view, 3)
 
-        self.__txn.get_signal().connect(self.__update)
-        self.__val.get_signal().connect(self.__txn_error)
+        return
+
+    @Slot()
+    def __plot_start_update(self, start: int | None = None) -> None:
+        size = self.__tab.index.size
+        if size:
+            self.__start_min = 1
+            self.__start_max = size
+            if start is not None and start >= self.__start_min and start <= self.__start_max:
+                self.__start = start
+                self.__range_max = size - self.__start + 1
+                if min(size, self.__range_max) < 5:
+                    self.__range_min = min(size, self.__range_max)
+                else:
+                    self.__range_min = 5
+                self.__plot_start_min.setText(str(self.__start_min))
+                self.__plot_start_max.setText(str(self.__start_max))
+                self.__plot_range_min.setText(str(self.__range_min))
+                self.__plot_range_max.setText(str(self.__range_max))
+                self.__plot_start.valueChanged.disconnect(self.__plot_start_update)
+                self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
+                self.__plot_start.setRange(self.__start_min, self.__start_max)
+                self.__plot_range.setRange(self.__range_min, self.__range_max)
+                if self.__range < self.__range_min or self.__range > self.__range_max:
+                    self.__range = self.__range_max
+                    self.__plot_range.setValue(self.__range_max)
+                self.__plot_start.valueChanged.connect(self.__plot_start_update)
+                self.__plot_range.valueChanged.connect(self.__plot_range_update)
+                self.__plot_start_title.setText(f'Start: {self.__start}')
+                self.__plot_range_title.setText(f'Range: {self.__range}')
+                self.__plot()
+                return
+            else:
+                if self.__start < self.__start_min or self.__start > self.__start_max:
+                    self.__start = self.__start_min
+                self.__range_max = size - self.__start + 1
+                if min(size, self.__range_max) < 5:
+                    self.__range_min = min(size, self.__range_max)
+                else:
+                    self.__range_min = 5
+        else:
+            self.__start_min = 0
+            self.__start_max = 0
+            self.__range_min = 0
+            self.__range_max = 0
+            self.__start = 0
+            self.__range = 0
+        self.__plot_start_min.setText(str(self.__start_min))
+        self.__plot_start_max.setText(str(self.__start_max))
+        self.__plot_range_min.setText(str(self.__range_min))
+        self.__plot_range_max.setText(str(self.__range_max))
+        self.__plot_start.valueChanged.disconnect(self.__plot_start_update)
+        self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
+        self.__plot_start.setRange(self.__start_min, self.__start_max)
+        self.__plot_range.setRange(self.__range_min, self.__range_max)
+        if self.__range < self.__range_min or self.__range > self.__range_max:
+            self.__range = self.__range_max
+            self.__plot_range.setValue(self.__range_max)
+        self.__plot_start.valueChanged.connect(self.__plot_start_update)
+        self.__plot_range.valueChanged.connect(self.__plot_range_update)
+        self.__plot_start_title.setText(f'Start: {self.__start}')
+        self.__plot_range_title.setText(f'Range: {self.__range}')
+        return
+
+    @Slot()
+    def __plot_range_update(self, range: int | None = None) -> None:
+        if range is not None and range >= self.__range_min and range <= self.__range_max:
+            self.__range = range
+            self.__plot()
+        elif self.__range < self.__range_min or self.__range > self.__range_max:
+            self.__range = self.__range_max
+            self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
+            self.__plot_range.setValue(self.__range_max)
+            self.__plot_range.valueChanged.connect(self.__plot_range_update)
+        self.__plot_range_title.setText(f'Range: {self.__range}')
         return
 
     def __plot(self) -> None:
-        tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
-        head = 0
-        tail = tab.index.size
-        if tail <= tab.index.size and head >= 0 and tail - head > 0:
-            date = tab.iloc[head:tail, VAL_COL_DT].tolist()
-            profit = (tab.iloc[head:tail, VAL_COL_NV] / tab.iat[head, VAL_COL_NV] - 1) * 100
-            v = tab.iloc[head:tail, VAL_COL_TA] > 0
+        head = self.__start - 1
+        tail = head + self.__range
+        if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
+            date = self.__date[head:tail]
+            val = self.__tab.iloc[head:tail, VAL_COL_NV]
+            v = self.__tab.iloc[head:tail, VAL_COL_TA] > 0
             txnBA = (
-                tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
-                profit.loc[v].tolist(),
+                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
+                val.loc[v].tolist(),
             )
-            v = tab.iloc[head:tail, VAL_COL_TA] < 0
+            v = self.__tab.iloc[head:tail, VAL_COL_TA] < 0
             txnSA = (
-                tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
-                profit.loc[v].tolist(),
+                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
+                val.loc[v].tolist(),
             )
             self.__ax.clear()
+            self.__ax2.clear()
             self.__ax.plot(
-                date, profit.tolist(),
-                date, profit.rolling(window=180, min_periods=1).mean().tolist(),
-                date, profit.rolling(window=360, min_periods=1).mean().tolist(),
+                date, val.tolist(),
+                date, self.__avg125[head:tail],
+                date, self.__avg250[head:tail],
+                date, self.__avg500[head:tail],
                 txnBA[0], txnBA[1], 'ro',
                 txnSA[0], txnSA[1], 'go',
                 lw=0.5,
                 ms=3,
             )
-            # if len(txnBA[0]):
-            #     self.__ax.stem(txnBA[0], txnBA[1], 'r--', '#ff0000')
-            self.__ax.set(xlabel='Date', ylabel='Profit Rate(%)')
+            self.__ax.set(xlabel='Date', ylabel='Net Value')
             self.__ax.set_title(f'{self.__val.get_name()} ({self.__val.get_code()})',
                 fontsize=16, fontproperties=self.__font)
-            self.__ax.legend(['Profit Rate','180 Avg,','360 Avg.','Buying','Selling'])
-            # self.__ax.set_ylim([0, 8])
+            self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling'])
             self.__ax.margins(x=0)
+            self.__ax2.set_ylim((self.__ax.set_ylim() / val.iat[0] - 1) * 100)
+            self.__ax2.set_ylabel('Profit Rate (%)')
         self.__ax.grid(True)
         self.__canvas.draw()
         return
 
     def get_stat(self) -> dict:
         txn = super(txnTabView, self.__txn).table()
-        val = self.__val.table()
         stat = {TAG_IA:float('nan'), TAG_PA:float('nan'), TAG_HA:float('nan'),
                 TAG_PR:float('nan'), TAG_AR:float('nan')}
         if txn.index.size:
             stat[TAG_IA] = txn.iloc[:, TXN_COL_BA].sum()
-            if val.index.size:
-                stat[TAG_PA] = txn.iloc[:, TXN_COL_SA].sum() + val.iat[0, VAL_COL_HA] - stat[TAG_IA]
-                stat[TAG_HA] = val.iat[0, VAL_COL_HA]
+            if self.__tab.index.size:
+                stat[TAG_PA] = txn.iloc[:, TXN_COL_SA].sum() + self.__tab.iat[0, VAL_COL_HA] - stat[TAG_IA]
+                stat[TAG_HA] = self.__tab.iat[0, VAL_COL_HA]
                 stat[TAG_PR] = stat[TAG_PA] / stat[TAG_IA]
                 if txn.iat[-1, TXN_COL_HS]:
                     stat[TAG_AR] = self.__txn.avgRate(
                         pd.concat([txn, pd.DataFrame([[
-                            val.iat[0, VAL_COL_DT],
+                            self.__tab.iat[0, VAL_COL_DT],
                             float('nan'),
                             float('nan'),
-                            val.iat[0, VAL_COL_HA],
+                            self.__tab.iat[0, VAL_COL_HA],
                             txn.iat[-1, TXN_COL_HS],
                             float('nan'),
                             float('nan'),
@@ -144,6 +252,13 @@ class detailPanel(QMainWindow):
     @Slot()
     def __update(self) -> None:
         self.__val.table(txn=super(txnTabView, self.__txn).table())
+        self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
+        self.__date = self.__tab.iloc[:, VAL_COL_DT].tolist()
+        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean().tolist()
+        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean().tolist()
+        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean().tolist()
+        self.__plot_start_update()
+        self.__plot_range_update()
         self.__plot()
         self.__show_stat()
         return
