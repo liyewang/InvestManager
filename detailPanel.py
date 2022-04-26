@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel, QTableWidget
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, QEvent
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
@@ -28,7 +28,7 @@ TAG_HA = 'Holding Amount'
 TAG_PR = 'Profit Rate'
 TAG_AR = 'Average Rate'
 
-class detPanel(QMainWindow):
+class detailPanel(QMainWindow):
     def __init__(self, txn: txnTabView, val: valTabView) -> None:
         super().__init__()
         self.setMinimumSize(1280, 720)
@@ -68,32 +68,39 @@ class detPanel(QMainWindow):
 
     def __plot(self) -> None:
         tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
-        v = tab.iloc[:, VAL_COL_TA] > 0
-        txnBA = (
-            tab.iloc[:, VAL_COL_DT].loc[v].tolist(),
-            tab.iloc[:, VAL_COL_NV].loc[v].tolist(),
-        )
-        v = tab.iloc[:, VAL_COL_TA] < 0
-        txnSA = (
-            tab.iloc[:, VAL_COL_DT].loc[v].tolist(),
-            tab.iloc[:, VAL_COL_NV].loc[v].tolist(),
-        )
-        self.__ax.clear()
-        self.__ax.plot(
-            tab.iloc[:, VAL_COL_DT].tolist(), tab.iloc[:, VAL_COL_NV].tolist(),
-            tab.iloc[:, VAL_COL_DT].tolist(), tab.iloc[:, VAL_COL_NV].rolling(window=180, min_periods=1).mean().tolist(),
-            tab.iloc[:, VAL_COL_DT].tolist(), tab.iloc[:, VAL_COL_NV].rolling(window=360, min_periods=1).mean().tolist(),
-            txnBA[0], txnBA[1], 'ro',
-            txnSA[0], txnSA[1], 'go',
-            lw=0.5,
-            ms=3,
-        )
-        self.__ax.set(xlabel='Date', ylabel='Net Value')
-        self.__ax.set_title(f'{self.__val.get_name()} ({self.__val.get_code()})',
-            fontsize=16, fontproperties=self.__font)
-        self.__ax.legend(['Net Value','180 Avg,','360 Avg.','Buying','Selling'])
-        self.__ax.set_ylim([0, 8])
-        # self.__ax.margins(x=0.05, y=0.05)
+        head = 0
+        tail = tab.index.size
+        if tail <= tab.index.size and head >= 0 and tail - head > 0:
+            date = tab.iloc[head:tail, VAL_COL_DT].tolist()
+            profit = (tab.iloc[head:tail, VAL_COL_NV] / tab.iat[head, VAL_COL_NV] - 1) * 100
+            v = tab.iloc[head:tail, VAL_COL_TA] > 0
+            txnBA = (
+                tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
+                profit.loc[v].tolist(),
+            )
+            v = tab.iloc[head:tail, VAL_COL_TA] < 0
+            txnSA = (
+                tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
+                profit.loc[v].tolist(),
+            )
+            self.__ax.clear()
+            self.__ax.plot(
+                date, profit.tolist(),
+                date, profit.rolling(window=180, min_periods=1).mean().tolist(),
+                date, profit.rolling(window=360, min_periods=1).mean().tolist(),
+                txnBA[0], txnBA[1], 'ro',
+                txnSA[0], txnSA[1], 'go',
+                lw=0.5,
+                ms=3,
+            )
+            # if len(txnBA[0]):
+            #     self.__ax.stem(txnBA[0], txnBA[1], 'r--', '#ff0000')
+            self.__ax.set(xlabel='Date', ylabel='Profit Rate(%)')
+            self.__ax.set_title(f'{self.__val.get_name()} ({self.__val.get_code()})',
+                fontsize=16, fontproperties=self.__font)
+            self.__ax.legend(['Profit Rate','180 Avg,','360 Avg.','Buying','Selling'])
+            # self.__ax.set_ylim([0, 8])
+            self.__ax.margins(x=0)
         self.__ax.grid(True)
         self.__canvas.draw()
         return
@@ -146,15 +153,17 @@ class detPanel(QMainWindow):
         self.__txn.raise_error(args)
         return
 
-    # def keyPressEvent(self, event: QKeyEvent) -> None:
-    #     print(event)
-    #     return super().keyPressEvent(event)
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        print(event)
+        if event.text() == '\u0003':
+            print('ok')
+        return super().keyPressEvent(event)
 
 if __name__ == '__main__':
     app = QApplication()
     txn = txnTabView()
     val = valTabView()
-    det = detPanel(txn, val)
+    det = detailPanel(txn, val)
     det.show()
     val.table(code='519697')
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
