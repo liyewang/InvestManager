@@ -9,6 +9,7 @@ from txnTab import (
     COL_BA as TXN_COL_BA,
     COL_SA as TXN_COL_SA,
     COL_HS as TXN_COL_HS,
+    COL_HP as TXN_COL_HP,
 )
 
 URL_API = 'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode='
@@ -20,19 +21,22 @@ TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
 TAG_NV = 'Net Value'
 TAG_HA = 'Holding Amount'
+TAG_HP = 'Holding Price'
 TAG_TA = 'Transaction Amount'
 
 COL_DT = 0
 COL_UV = 1
 COL_NV = 2
 COL_HA = 3
-COL_TA = 4
+COL_HP = 4
+COL_TA = 5
 
 COL_TAG = [
     TAG_DT,
     TAG_UV,
     TAG_NV,
     TAG_HA,
+    TAG_HP,
     TAG_TA,
 ]
 
@@ -56,7 +60,7 @@ class valTab:
                 self.__name = df.iat[1, 1]
                 self.__tab = df.iloc[2:, 2:5].astype({TAG_DT_RAW:'datetime64[ns]'}).drop_duplicates(ignore_index=True).sort_values(TAG_DT_RAW, ascending=False, ignore_index=True)
                 rows = self.__tab.index.size
-                self.__zeros = pd.DataFrame(0., index=range(rows), columns=COL_TAG[COL_HA:])
+                self.__zeros = pd.DataFrame([[0., float('nan'), 0.]], index=range(rows), columns=COL_TAG[COL_HA:])
                 self.__tab = pd.concat([self.__tab, self.__zeros], axis=1)
                 self.__tab.columns = COL_TAG
             except:
@@ -64,15 +68,21 @@ class valTab:
         if txn is not None and self.__tab.index.size > 0 and txnTab().isValid(txn):
             self.__tab.iloc[:, COL_HA:] = self.__zeros
             txnAmt = txn.iloc[:, TXN_COL_BA].fillna(0.) - txn.iloc[:, TXN_COL_SA].fillna(0.)
-            row = 0
+            row_HS = 0
+            row_HP = 0
             for i in range(txn.index.size - 1, -1, -1):
                 df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == txn.iat[i, TXN_COL_DT]]
                 if df.index.size == 0:
                     raise ValueError('Transaction date does not exist.', {(TXN_COL_DT, i, 1, 1)})
-                self.__tab.iloc[row:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row:df.index[-1] + 1, COL_NV] \
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
                     * (txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iat[df.index[-1], COL_TA] = txnAmt.iat[i]
-                row = df.index[-1] + 1
+                row_HS = df.index[-1] + 1
+                if txnAmt.iat[i] > 0:
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = txn.iat[i, TXN_COL_HP] * df.iat[0, COL_NV] / df.iat[0, COL_UV]
+                    row_HP = df.index[-1] + 1
+                elif not txn.iat[i, TXN_COL_HS]:
+                    row_HP = df.index[-1] + 1
         return
 
     def get_code(self) -> str:
@@ -91,10 +101,10 @@ class valTabView(valTab, tabView):
     def __init__(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
         try:
             valTab.__init__(self, code, txn)
-            self.__tab = valTab.table(self).iloc[:, :COL_TA]
+            self.__tab = valTab.table(self).iloc[:, :COL_HP]
             tabView.__init__(self, self.__tab)
         except:
-            self.__tab = valTab.table(self).iloc[:, :COL_TA]
+            self.__tab = valTab.table(self).iloc[:, :COL_HP]
             tabView.__init__(self, self.__tab)
             self.__err_sig.emit(sys.exc_info()[1].args)
         self.view.setMinimumWidth(500)
@@ -129,7 +139,7 @@ class valTabView(valTab, tabView):
     def table(self, code: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
         if code is not None or txn is not None:
             try:
-                self.__tab = valTab.table(self, code, txn).iloc[:, :COL_TA]
+                self.__tab = valTab.table(self, code, txn).iloc[:, :COL_HP]
             except:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             self.beginResetModel()

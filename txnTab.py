@@ -10,6 +10,7 @@ TAG_BS = 'Buying Share'
 TAG_SA = 'Selling Amount'
 TAG_SS = 'Selling Share'
 TAG_HS = 'Holding Share'
+TAG_HP = 'Holding Price'
 TAG_RR = 'Rate of Return'
 TAG_HA = 'Holding Amount'
 TAG_AR = 'Average Rate'
@@ -22,7 +23,8 @@ COL_BS = 2
 COL_SA = 3
 COL_SS = 4
 COL_HS = 5
-COL_RR = 6
+COL_HP = 6
+COL_RR = 7
 
 COL_TAG = [
     TAG_DT,
@@ -31,6 +33,7 @@ COL_TAG = [
     TAG_SA,
     TAG_SS,
     TAG_HS,
+    TAG_HP,
     TAG_RR,
 ]
 
@@ -140,15 +143,22 @@ class txnTab:
 
         Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
         HoldShrRes = 0
-        HoldShrMat = pd.Series(index=range(rows), dtype=float)
+        Amt = 0
+        HoldMat = pd.DataFrame(index=range(rows), columns=range(2), dtype=float)
         for row in range(rows):
             HoldShrRes += Shr.iat[row]
-            HoldShrMat.iat[row] = HoldShrRes
+            HoldMat.iat[row, 0] = HoldShrRes
             if HoldShrRes < 0:
-                _data.iloc[:, COL_HS] = HoldShrMat
+                _data.iloc[:, COL_HS:COL_RR] = HoldMat
                 raise ValueError('Overselling is not allowed.', {(COL_SS, row, 1, 1)})
-        _data.iloc[:, COL_HS] = HoldShrMat
-        df.iloc[:, COL_HS] = HoldShrMat
+            if df.iat[row, COL_BS]:
+                Amt += df.iat[row, COL_BA] * (1 - 0.00145)
+            else:
+                Amt *= HoldShrRes / (df.iat[row, COL_SS] + HoldShrRes)
+            if HoldShrRes:
+                HoldMat.iat[row, 1] = Amt / HoldShrRes
+        _data.iloc[:, COL_HS:COL_RR] = HoldMat
+        df.iloc[:, COL_HS:COL_RR] = HoldMat.fillna(0.)
 
         AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype=float)
         row_0 = 0
@@ -299,7 +309,7 @@ class txnTabView(txnTab, tabView):
             self.__update(txnTab.table(self))
         else:
             self.__update(data)
-        self.view.setMinimumWidth(780)
+        self.view.setMinimumWidth(866)
         self.view.scrollToBottom()
         return
 
@@ -323,6 +333,8 @@ class txnTabView(txnTab, tabView):
             col = index.column()
             if col == COL_DT and type(v) is pd.Timestamp:
                 return v.strftime(r'%Y/%m/%d')
+            elif col == COL_HP:
+                return f'{v:.4f}'
             elif col == COL_RR:
                 return f'{v * 100:.2f}%'
             else:

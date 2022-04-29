@@ -18,6 +18,7 @@ from valTab import (
     COL_UV as VAL_COL_UV,
     COL_NV as VAL_COL_NV,
     COL_HA as VAL_COL_HA,
+    COL_HP as VAL_COL_HP,
     COL_TA as VAL_COL_TA,
 )
 
@@ -32,7 +33,7 @@ TAG_AR = 'Average Rate'
 class detailPanel(QMainWindow):
     def __init__(self, txn: txnTabView, val: valTabView) -> None:
         super().__init__()
-        self.setMinimumSize(1280, 720)
+        self.setMinimumSize(1366, 768)
         self.__txn = txn
         self.__val = val
         self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
@@ -103,6 +104,7 @@ class detailPanel(QMainWindow):
     @Slot()
     def __plot_start_update(self, start: int | None = None) -> None:
         size = self.__tab.index.size
+        valid = False
         if size:
             self.__start_min = 1
             self.__start_max = size
@@ -113,23 +115,7 @@ class detailPanel(QMainWindow):
                     self.__range_min = min(size, self.__range_max)
                 else:
                     self.__range_min = 5
-                self.__plot_start_min.setText(str(self.__start_min))
-                self.__plot_start_max.setText(str(self.__start_max))
-                self.__plot_range_min.setText(str(self.__range_min))
-                self.__plot_range_max.setText(str(self.__range_max))
-                self.__plot_start.valueChanged.disconnect(self.__plot_start_update)
-                self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
-                self.__plot_start.setRange(self.__start_min, self.__start_max)
-                self.__plot_range.setRange(self.__range_min, self.__range_max)
-                if self.__range < self.__range_min or self.__range > self.__range_max:
-                    self.__range = self.__range_max
-                    self.__plot_range.setValue(self.__range_max)
-                self.__plot_start.valueChanged.connect(self.__plot_start_update)
-                self.__plot_range.valueChanged.connect(self.__plot_range_update)
-                self.__plot_start_title.setText(f'Start: {self.__start}')
-                self.__plot_range_title.setText(f'Range: {self.__range}')
-                self.__plot()
-                return
+                valid = True
             else:
                 if self.__start < self.__start_min or self.__start > self.__start_max:
                     self.__start = self.__start_min
@@ -160,6 +146,8 @@ class detailPanel(QMainWindow):
         self.__plot_range.valueChanged.connect(self.__plot_range_update)
         self.__plot_start_title.setText(f'Start: {self.__start}')
         self.__plot_range_title.setText(f'Range: {self.__range}')
+        if valid:
+            self.__plot()
         return
 
     @Slot()
@@ -191,6 +179,13 @@ class detailPanel(QMainWindow):
                 self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
                 val.loc[v].tolist(),
             )
+            # v = self.__tab.iloc[head:tail, VAL_COL_TA] != 0
+            txnCP = (
+                # self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
+                # self.__tab.iloc[head:tail, VAL_COL_HP].loc[v].tolist(),
+                date,
+                self.__tab.iloc[head:tail, VAL_COL_HP],
+            )
             self.__ax.clear()
             self.__ax2.clear()
             self.__ax.plot(
@@ -198,15 +193,16 @@ class detailPanel(QMainWindow):
                 date, self.__avg125[head:tail],
                 date, self.__avg250[head:tail],
                 date, self.__avg500[head:tail],
-                txnBA[0], txnBA[1], 'ro',
-                txnSA[0], txnSA[1], 'go',
+                txnBA[0], txnBA[1], 'bo',
+                txnSA[0], txnSA[1], 'ro',
+                txnCP[0], txnCP[1], 'm-.',
                 lw=0.5,
                 ms=3,
             )
             self.__ax.set(xlabel='Date', ylabel='Net Value')
             self.__ax.set_title(f'{self.__val.get_name()} ({self.__val.get_code()})',
                 fontsize=16, fontproperties=self.__font)
-            self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling'])
+            self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling', 'Holding Price'])
             self.__ax.margins(x=0)
             self.__ax2.set_ylim((self.__ax.set_ylim() / val.iat[0] - 1) * 100)
             self.__ax2.set_ylabel('Profit Rate (%)')
