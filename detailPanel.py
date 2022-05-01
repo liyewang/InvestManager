@@ -231,10 +231,10 @@ class detailPanel(QMainWindow):
 
     def __show_stat(self) -> None:
         d = self.get_stat()
-        s  = f'{TAG_IA}\t{d[TAG_IA]:10.2f}\n'
-        s += f'{TAG_PA}\t{d[TAG_PA]:10.2f}\n'
-        s += f'{TAG_PR}\t{d[TAG_PR] * 100:9.2f}%\n'
-        s += f'{TAG_AR}\t{d[TAG_AR] * 100:9.2f}%'
+        s  = f'{TAG_IA}\t{d[TAG_IA]:12,.2f}\n'
+        s += f'{TAG_PA}\t{d[TAG_PA]:12,.2f}\n'
+        s += f'{TAG_PR}\t{d[TAG_PR] * 100:11,.2f}%\n'
+        s += f'{TAG_AR}\t{d[TAG_AR] * 100:11,.2f}%'
         self.__stat.setText(s)
         return
 

@@ -129,9 +129,9 @@ class valTabView(valTab, tabView):
             if col == COL_DT and type(v) is pd.Timestamp:
                 return v.strftime(r'%Y/%m/%d')
             elif col == COL_HA:
-                return f'{v:.2f}'
+                return f'{v:,.2f}'
             else:
-                return f'{v:.4f}'
+                return f'{v:,.4f}'
         elif role == Qt.TextAlignmentRole:
             if index.column() == COL_DT:
                 return int(Qt.AlignCenter)

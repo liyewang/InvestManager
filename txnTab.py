@@ -334,11 +334,11 @@ class txnTabView(txnTab, tabView):
             if col == COL_DT and type(v) is pd.Timestamp:
                 return v.strftime(r'%Y/%m/%d')
             elif col == COL_HP:
-                return f'{v:.4f}'
+                return f'{v:,.4f}'
             elif col == COL_RR:
-                return f'{v * 100:.2f}%'
+                return f'{v * 100:,.2f}%'
             else:
-                return f'{v:.2f}'
+                return f'{v:,.2f}'
         elif role == Qt.TextAlignmentRole:
             if index.column() == COL_DT:
                 return int(Qt.AlignCenter)
