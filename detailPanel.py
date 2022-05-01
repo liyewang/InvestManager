@@ -19,7 +19,7 @@ from valTab import (
     COL_NV as VAL_COL_NV,
     COL_HA as VAL_COL_HA,
     COL_HP as VAL_COL_HP,
-    COL_TA as VAL_COL_TA,
+    COL_TS as VAL_COL_TS,
 )
 
 FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
@@ -37,10 +37,10 @@ class detailPanel(QMainWindow):
         self.__txn = txn
         self.__val = val
         self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, VAL_COL_DT].tolist()
-        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean().tolist()
-        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean().tolist()
-        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean().tolist()
+        self.__date = self.__tab.iloc[:, VAL_COL_DT]
+        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
+        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
+        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean()
         self.__txn.get_signal().connect(self.__update)
         self.__val.get_signal().connect(self.__txn_error)
 
@@ -169,33 +169,26 @@ class detailPanel(QMainWindow):
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
             val = self.__tab.iloc[head:tail, VAL_COL_NV]
-            v = self.__tab.iloc[head:tail, VAL_COL_TA] > 0
+            v = self.__tab.iloc[head:tail, VAL_COL_TS] > 0
             txnBA = (
-                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
-                val.loc[v].tolist(),
+                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
+                val.loc[v],
             )
-            v = self.__tab.iloc[head:tail, VAL_COL_TA] < 0
+            v = self.__tab.iloc[head:tail, VAL_COL_TS] < 0
             txnSA = (
-                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
-                val.loc[v].tolist(),
-            )
-            # v = self.__tab.iloc[head:tail, VAL_COL_TA] != 0
-            txnCP = (
-                # self.__tab.iloc[head:tail, VAL_COL_DT].loc[v].tolist(),
-                # self.__tab.iloc[head:tail, VAL_COL_HP].loc[v].tolist(),
-                date,
-                self.__tab.iloc[head:tail, VAL_COL_HP],
+                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
+                val.loc[v],
             )
             self.__ax.clear()
             self.__ax2.clear()
             self.__ax.plot(
-                date, val.tolist(),
+                date, val,
                 date, self.__avg125[head:tail],
                 date, self.__avg250[head:tail],
                 date, self.__avg500[head:tail],
                 txnBA[0], txnBA[1], 'bo',
                 txnSA[0], txnSA[1], 'ro',
-                txnCP[0], txnCP[1], 'm-.',
+                date, self.__tab.iloc[head:tail, VAL_COL_HP], 'm-.',
                 lw=0.5,
                 ms=3,
             )
@@ -249,10 +242,10 @@ class detailPanel(QMainWindow):
     def __update(self) -> None:
         self.__val.table(txn=super(txnTabView, self.__txn).table())
         self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, VAL_COL_DT].tolist()
-        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean().tolist()
-        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean().tolist()
-        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean().tolist()
+        self.__date = self.__tab.iloc[:, VAL_COL_DT]
+        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
+        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
+        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean()
         self.__plot_start_update()
         self.__plot_range_update()
         self.__plot()

@@ -152,7 +152,7 @@ class txnTab:
                 _data.iloc[:, COL_HS:COL_RR] = HoldMat
                 raise ValueError('Overselling is not allowed.', {(COL_SS, row, 1, 1)})
             if df.iat[row, COL_BS]:
-                Amt += df.iat[row, COL_BA] * (1 - 0.00145)
+                Amt += df.iat[row, COL_BA]
             else:
                 Amt *= HoldShrRes / (df.iat[row, COL_SS] + HoldShrRes)
             if HoldShrRes:

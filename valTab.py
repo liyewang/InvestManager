@@ -6,8 +6,8 @@ from tabView import *
 from txnTab import (
     txnTab,
     COL_DT as TXN_COL_DT,
-    COL_BA as TXN_COL_BA,
-    COL_SA as TXN_COL_SA,
+    COL_BS as TXN_COL_BS,
+    COL_SS as TXN_COL_SS,
     COL_HS as TXN_COL_HS,
     COL_HP as TXN_COL_HP,
 )
@@ -22,14 +22,14 @@ TAG_UV = 'Unit Net Value'
 TAG_NV = 'Net Value'
 TAG_HA = 'Holding Amount'
 TAG_HP = 'Holding Price'
-TAG_TA = 'Transaction Amount'
+TAG_TS = 'Transaction Share'
 
 COL_DT = 0
 COL_UV = 1
 COL_NV = 2
 COL_HA = 3
 COL_HP = 4
-COL_TA = 5
+COL_TS = 5
 
 COL_TAG = [
     TAG_DT,
@@ -37,7 +37,7 @@ COL_TAG = [
     TAG_NV,
     TAG_HA,
     TAG_HP,
-    TAG_TA,
+    TAG_TS,
 ]
 
 class valTab:
@@ -48,6 +48,9 @@ class valTab:
         self.__zeros = pd.DataFrame(columns=COL_TAG[COL_HA:])
         self.__update(code, txn)
         return
+
+    def __repr__(self) -> str:
+        return self.__tab.to_string()
 
     def __update(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
         if code is not None:
@@ -67,7 +70,7 @@ class valTab:
                 raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
         if txn is not None and self.__tab.index.size > 0 and txnTab().isValid(txn):
             self.__tab.iloc[:, COL_HA:] = self.__zeros
-            txnAmt = txn.iloc[:, TXN_COL_BA].fillna(0.) - txn.iloc[:, TXN_COL_SA].fillna(0.)
+            txnShr = txn.iloc[:, TXN_COL_BS].fillna(0.) - txn.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
             for i in range(txn.index.size - 1, -1, -1):
@@ -76,10 +79,10 @@ class valTab:
                     raise ValueError('Transaction date does not exist.', {(TXN_COL_DT, i, 1, 1)})
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
                     * (txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
-                self.__tab.iat[df.index[-1], COL_TA] = txnAmt.iat[i]
+                self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
-                if txnAmt.iat[i] > 0:
-                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = txn.iat[i, TXN_COL_HP] * df.iat[0, COL_NV] / df.iat[0, COL_UV]
+                if txnShr.iat[i] > 0:
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + txn.iat[i, TXN_COL_HP]
                     row_HP = df.index[-1] + 1
                 elif not txn.iat[i, TXN_COL_HS]:
                     row_HP = df.index[-1] + 1
