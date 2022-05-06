@@ -36,7 +36,7 @@ class detailPanel(QMainWindow):
         self.setMinimumSize(1366, 768)
         self.__txn = txn
         self.__val = val
-        self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
+        self.__tab = self.__val.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, VAL_COL_DT]
         self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
         self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
@@ -204,23 +204,24 @@ class detailPanel(QMainWindow):
         return
 
     def get_stat(self) -> dict:
-        txn = super(txnTabView, self.__txn).table()
+        txn = self.__txn.table()
         stat = {TAG_IA:float('nan'), TAG_PA:float('nan'), TAG_HA:float('nan'),
                 TAG_PR:float('nan'), TAG_AR:float('nan')}
         if txn.index.size:
             stat[TAG_IA] = txn.iloc[:, TXN_COL_BA].sum()
             if self.__tab.index.size:
-                stat[TAG_PA] = txn.iloc[:, TXN_COL_SA].sum() + self.__tab.iat[0, VAL_COL_HA] - stat[TAG_IA]
-                stat[TAG_HA] = self.__tab.iat[0, VAL_COL_HA]
+                stat[TAG_PA] = txn.iloc[:, TXN_COL_SA].sum() + self.__tab.iat[-1, VAL_COL_HA] - stat[TAG_IA]
+                stat[TAG_HA] = self.__tab.iat[-1, VAL_COL_HA]
                 stat[TAG_PR] = stat[TAG_PA] / stat[TAG_IA]
                 if txn.iat[-1, TXN_COL_HS]:
                     stat[TAG_AR] = self.__txn.avgRate(
                         pd.concat([txn, pd.DataFrame([[
-                            self.__tab.iat[0, VAL_COL_DT],
+                            self.__tab.iat[-1, VAL_COL_DT],
                             float('nan'),
                             float('nan'),
-                            self.__tab.iat[0, VAL_COL_HA],
+                            self.__tab.iat[-1, VAL_COL_HA],
                             txn.iat[-1, TXN_COL_HS],
+                            float('nan'),
                             float('nan'),
                             float('nan'),
                         ]], columns=txn.columns)], ignore_index=True)
@@ -240,8 +241,8 @@ class detailPanel(QMainWindow):
 
     @Slot()
     def __update(self) -> None:
-        self.__val.table(txn=super(txnTabView, self.__txn).table())
-        self.__tab = super(valTabView, self.__val).table().sort_index(ascending=False, ignore_index=True)
+        self.__val.table(txn=self.__txn.table())
+        self.__tab = self.__val.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, VAL_COL_DT]
         self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
         self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()

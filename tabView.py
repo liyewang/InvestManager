@@ -33,15 +33,15 @@ class tabView(QAbstractTableModel):
         self.__BackColor = {COLOR_CRIT[BACK]: set(), COLOR_WARN[BACK]: set(), COLOR_INFO[BACK]: set()}
         return
 
-    def flags(self, index):
+    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         return Qt.ItemIsEnabled | Qt.ItemIsEditable | Qt.ItemIsSelectable
 
-    def rowCount(self, parent=QModelIndex()) -> int:
+    def rowCount(self, parent = QModelIndex()) -> int:
         if parent == QModelIndex():
             return self.__tab.index.size
         return 0
 
-    def columnCount(self, parent=QModelIndex()) -> int:
+    def columnCount(self, parent = QModelIndex()) -> int:
         if parent == QModelIndex():
             return self.__tab.columns.size
         return 0
@@ -53,7 +53,7 @@ class tabView(QAbstractTableModel):
                     if rect.contains(col, row):
                         return QColor(color)
 
-    def data(self, index: QModelIndex, role=Qt.ItemDataRole) -> str | None:
+    def data(self, index: QModelIndex, role: int) -> str | None:
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
@@ -67,7 +67,7 @@ class tabView(QAbstractTableModel):
             return self.__colorMap(self.__BackColor, index.row(), index.column())
         return None
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole) -> str | None:
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int) -> str | None:
         if role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 return str(self.__tab.columns[section])
@@ -85,7 +85,7 @@ class tabView(QAbstractTableModel):
                 return self.__colorMap(self.__BackColor, -1, section)
         return None
 
-    def setData(self, index, value, role=Qt.EditRole) -> bool:
+    def setData(self, index, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
             self.__tab.iat[index.row(), index.column()] = float(value)
             return True

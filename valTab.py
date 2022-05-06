@@ -113,10 +113,10 @@ class valTabView(valTab, tabView):
         self.view.setMinimumWidth(500)
         return
 
-    def flags(self, index):
+    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
-    def data(self, index: QModelIndex, role=Qt.ItemDataRole) -> str | None:
+    def data(self, index: QModelIndex, role: int) -> str | None:
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
@@ -139,7 +139,7 @@ class valTabView(valTab, tabView):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return tabView.data(self, index, role)
 
-    def table(self, code: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, code: str | None = None, txn: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if code is not None or txn is not None:
             try:
                 self.__tab = valTab.table(self, code, txn).iloc[:, :COL_HP]
@@ -148,7 +148,9 @@ class valTabView(valTab, tabView):
             self.beginResetModel()
             tabView.table(self, self.__tab)
             self.endResetModel()
-        return self.__tab
+        if view:
+            return self.__tab
+        return valTab.table(self)
     
     def get_signal(self) -> Signal:
         return self.__err_sig

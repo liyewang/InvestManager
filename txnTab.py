@@ -313,15 +313,13 @@ class txnTabView(txnTab, tabView):
         self.view.scrollToBottom()
         return
 
-    def flags(self, index: QModelIndex):
-        col = index.column()
-        if col < COL_HS:
+    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
+        if index.column() < COL_HS:
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
-        else:
-            return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
 
-    def data(self, index: QModelIndex, role=Qt.ItemDataRole):
+    def data(self, index: QModelIndex, role: int) -> str | None:
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
@@ -346,7 +344,7 @@ class txnTabView(txnTab, tabView):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return tabView.data(self, index, role)
 
-    def setData(self, index: QModelIndex, value, role=Qt.EditRole) -> bool:
+    def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
             if value == '':
                 value = 'nan'
@@ -444,11 +442,13 @@ class txnTabView(txnTab, tabView):
         self.endResetModel()
         return
 
-    def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, data: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if data is not None:
             self.__update(data)
             self.view.scrollToBottom()
-        return self.__tab
+        if view:
+            return self.__tab
+        return txnTab.table(self)
 
     def get_error(self) -> tuple:
         return self.__err
