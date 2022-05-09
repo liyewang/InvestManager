@@ -388,20 +388,15 @@ class txnTabView(txnTab, tabView):
                 QMessageBox.critical(None, 'ERROR', str(args))
         return
 
-    def __update(self, newTab: pd.DataFrame | None = None) -> None:
+    def __update(self, tab: pd.DataFrame | None = None) -> None:
         self.__err = ()
         self.setColor(FORE, COLOR_CRIT[FORE])
         self.setColor(BACK, COLOR_CRIT[BACK])
-        if newTab is not None:
-            self.__tab = newTab
+        if tab is not None:
+            self.__tab = tab
         rows = self.__tab.index.size
         self.beginResetModel()
-        if rows == 0:
-            self.__tab = pd.concat([
-                self.__tab,
-                pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})],
-                ignore_index=True)
-        else:
+        if rows:
             row = 0
             while row < rows - 1:
                 if self.__tab.iloc[row, :COL_HS].isna().all():
@@ -414,7 +409,7 @@ class txnTabView(txnTab, tabView):
                 if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
                     self.__tab = df
                     mute = False
-                elif newTab is not None:
+                elif tab is not None:
                     mute = False
                 else:
                     mute = True
@@ -437,6 +432,8 @@ class txnTabView(txnTab, tabView):
                     self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
                 except:
                     self.raise_error(sys.exc_info()[1].args)
+        else:
+            self.__tab = pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})
         tabView.table(self, self.__tab)
         self.__txn_update.emit()
         self.endResetModel()
