@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import sys
 from PySide6.QtCore import Signal
-from tabView import *
+from basTab import *
 from txnTab import (
     txnTab,
     COL_DT as TXN_COL_DT,
@@ -99,16 +99,16 @@ class valTab:
             self.__update(code, txn)
         return self.__tab
 
-class valTabView(valTab, tabView):
+class valTabView(valTab, basTabModel):
     __err_sig = Signal(tuple)
     def __init__(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
         try:
             valTab.__init__(self, code, txn)
             self.__tab = valTab.table(self).iloc[:, :COL_HP]
-            tabView.__init__(self, self.__tab)
+            basTabModel.__init__(self, self.__tab)
         except:
             self.__tab = valTab.table(self).iloc[:, :COL_HP]
-            tabView.__init__(self, self.__tab)
+            basTabModel.__init__(self, self.__tab)
             self.__err_sig.emit(sys.exc_info()[1].args)
         self.view.setMinimumWidth(500)
         return
@@ -137,7 +137,7 @@ class valTabView(valTab, tabView):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return tabView.data(self, index, role)
+        return basTabModel.data(self, index, role)
 
     def table(self, code: str | None = None, txn: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if code is not None or txn is not None:
@@ -146,7 +146,7 @@ class valTabView(valTab, tabView):
             except:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             self.beginResetModel()
-            tabView.table(self, self.__tab)
+            basTabModel.table(self, self.__tab)
             self.endResetModel()
         if view:
             return self.__tab

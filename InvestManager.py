@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from tabView import QApplication
+from PySide6.QtWidgets import QApplication
 from txnTab import txnTabView
 from detailPanel import detailPanel
 from homePanel import homePanel

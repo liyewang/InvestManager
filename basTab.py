@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QTableView, QApplication, QHeaderView
+from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeyEvent
 import pandas as pd
 
 FORE = 0
@@ -9,26 +9,38 @@ BACK = 1
 FORE_CRIT = 0xbf0000
 BACK_CRIT = 0xffdfdf
 COLOR_CRIT = (FORE_CRIT, BACK_CRIT)
-FORE_WARN = 0xbf0000
+FORE_WARN = 0xbfbf00
 BACK_WARN = 0xffffdf
 COLOR_WARN = (FORE_WARN, BACK_WARN)
 FORE_INFO = 0x00bfbf
 BACK_INFO = 0xdfffff
 COLOR_INFO = (FORE_INFO, BACK_INFO)
+FORE_GOOD = 0x00bf00
+BACK_GOOD = 0xdfffdf
+COLOR_GOOD = (FORE_GOOD, BACK_GOOD)
 
-class tabView(QAbstractTableModel):
+class basTabView(QTableView):
 
-    def __init__(self, data: pd.DataFrame, parent=None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
+        QTableView.__init__(self, parent)
+        # self.resize(1280, 720)
+        # self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.setAlternatingRowColors(True)
+        # self.setSelectionBehavior(QTableView.SelectRows)
+        self.setAutoScroll(False)
+        return
+
+class basTabModel(QAbstractTableModel):
+
+    def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.__tab = data
-        self.view = QTableView()
+        if tabView:
+            self.view = tabView()
+        else:
+            self.view = basTabView()
         self.view.setModel(self)
-        # self.view.resize(1280, 720)
-        # self.view.horizontalHeader().setStretchLastSection(True)
-        self.view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.view.setAlternatingRowColors(True)
-        # self.view.setSelectionBehavior(QTableView.SelectRows)
-        self.view.setAutoScroll(False)
         self.__ForeColor = {COLOR_CRIT[FORE]: set(), COLOR_WARN[FORE]: set(), COLOR_INFO[FORE]: set()}
         self.__BackColor = {COLOR_CRIT[BACK]: set(), COLOR_WARN[BACK]: set(), COLOR_INFO[BACK]: set()}
         return
@@ -147,7 +159,7 @@ if __name__ == '__main__':
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
     
-    tv = tabView(df)
+    tv = basTabModel(df)
     tv.show()
     tv.select(1,1)
 

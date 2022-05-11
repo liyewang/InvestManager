@@ -1,5 +1,5 @@
 import pandas as pd
-from tabView import *
+from basTab import *
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import Signal
 import sys
@@ -299,12 +299,12 @@ class txnTab:
         self.__tab = self.__calcTab(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         return self.__tab
 
-class txnTabView(txnTab, tabView):
+class txnTabView(txnTab, basTabModel):
     __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         self.__err = ()
         txnTab.__init__(self)
-        tabView.__init__(self, txnTab.table(self))
+        basTabModel.__init__(self, txnTab.table(self))
         if data is None:
             self.__update(txnTab.table(self))
         else:
@@ -342,7 +342,7 @@ class txnTabView(txnTab, tabView):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return tabView.data(self, index, role)
+        return basTabModel.data(self, index, role)
 
     def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
@@ -372,7 +372,7 @@ class txnTabView(txnTab, tabView):
         if prt:
             print(args[0])
         self.beginResetModel()
-        tabView.table(self, self.__tab)
+        basTabModel.table(self, self.__tab)
         if len(args) >= 2 and type(args[1]) is set:
             for v in args[1]:
                 if type(v) is tuple and len(v) == 4:
@@ -434,7 +434,7 @@ class txnTabView(txnTab, tabView):
                     self.raise_error(sys.exc_info()[1].args)
         else:
             self.__tab = pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})
-        tabView.table(self, self.__tab)
+        basTabModel.table(self, self.__tab)
         self.__txn_update.emit()
         self.endResetModel()
         return
