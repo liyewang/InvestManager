@@ -7,13 +7,13 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
 import pandas as pd
 from txnTab import (
-    txnTabView,
+    txnTabMod,
     COL_BA as TXN_COL_BA,
     COL_SA as TXN_COL_SA,
     COL_HS as TXN_COL_HS,
 )
 from valTab import (
-    valTabView,
+    valTabMod,
     COL_DT as VAL_COL_DT,
     COL_UV as VAL_COL_UV,
     COL_NV as VAL_COL_NV,
@@ -31,7 +31,7 @@ TAG_PR = 'Profit Rate'
 TAG_AR = 'Average Rate'
 
 class detailPanel(QMainWindow):
-    def __init__(self, txn: txnTabView, val: valTabView) -> None:
+    def __init__(self, txn: txnTabMod, val: valTabMod) -> None:
         super().__init__()
         self.setMinimumSize(1366, 768)
         self.__txn = txn
@@ -266,8 +266,8 @@ class detailPanel(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication()
-    txn = txnTabView()
-    val = valTabView()
+    txn = txnTabMod()
+    val = valTabMod()
     det = detailPanel(txn, val)
     det.show()
     val.table(code='519697')

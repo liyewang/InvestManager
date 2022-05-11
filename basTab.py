@@ -31,7 +31,7 @@ class basTabView(QTableView):
         self.setAutoScroll(False)
         return
 
-class basTabModel(QAbstractTableModel):
+class basTabMod(QAbstractTableModel):
 
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
     
-    tv = basTabModel(df)
+    tv = basTabMod(df)
     tv.show()
     tv.select(1,1)
 

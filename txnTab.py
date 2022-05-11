@@ -299,12 +299,12 @@ class txnTab:
         self.__tab = self.__calcTab(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         return self.__tab
 
-class txnTabView(txnTab, basTabModel):
+class txnTabMod(txnTab, basTabMod):
     __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         self.__err = ()
         txnTab.__init__(self)
-        basTabModel.__init__(self, txnTab.table(self))
+        basTabMod.__init__(self, txnTab.table(self))
         if data is None:
             self.__update(txnTab.table(self))
         else:
@@ -342,7 +342,7 @@ class txnTabView(txnTab, basTabModel):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return basTabModel.data(self, index, role)
+        return basTabMod.data(self, index, role)
 
     def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
@@ -372,7 +372,7 @@ class txnTabView(txnTab, basTabModel):
         if prt:
             print(args[0])
         self.beginResetModel()
-        basTabModel.table(self, self.__tab)
+        basTabMod.table(self, self.__tab)
         if len(args) >= 2 and type(args[1]) is set:
             for v in args[1]:
                 if type(v) is tuple and len(v) == 4:
@@ -434,7 +434,7 @@ class txnTabView(txnTab, basTabModel):
                     self.raise_error(sys.exc_info()[1].args)
         else:
             self.__tab = pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})
-        basTabModel.table(self, self.__tab)
+        basTabMod.table(self, self.__tab)
         self.__txn_update.emit()
         self.endResetModel()
         return
@@ -464,7 +464,7 @@ class txnTabView(txnTab, basTabModel):
 
 if __name__ == '__main__':
     app = QApplication()
-    txn = txnTabView()
+    txn = txnTabMod()
     txn.show()
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     print(txn.table())

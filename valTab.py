@@ -99,16 +99,16 @@ class valTab:
             self.__update(code, txn)
         return self.__tab
 
-class valTabView(valTab, basTabModel):
+class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
     def __init__(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
         try:
             valTab.__init__(self, code, txn)
             self.__tab = valTab.table(self).iloc[:, :COL_HP]
-            basTabModel.__init__(self, self.__tab)
+            basTabMod.__init__(self, self.__tab)
         except:
             self.__tab = valTab.table(self).iloc[:, :COL_HP]
-            basTabModel.__init__(self, self.__tab)
+            basTabMod.__init__(self, self.__tab)
             self.__err_sig.emit(sys.exc_info()[1].args)
         self.view.setMinimumWidth(500)
         return
@@ -137,7 +137,7 @@ class valTabView(valTab, basTabModel):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return basTabModel.data(self, index, role)
+        return basTabMod.data(self, index, role)
 
     def table(self, code: str | None = None, txn: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if code is not None or txn is not None:
@@ -146,7 +146,7 @@ class valTabView(valTab, basTabModel):
             except:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             self.beginResetModel()
-            basTabModel.table(self, self.__tab)
+            basTabMod.table(self, self.__tab)
             self.endResetModel()
         if view:
             return self.__tab
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     app = QApplication()
     txn = txnTab()
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    val = valTabView('519697', txn.table())
+    val = valTabMod('519697', txn.table())
     val.show()
     print(val.get_code())
     print(val.get_name())
