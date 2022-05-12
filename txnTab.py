@@ -1,6 +1,5 @@
 import pandas as pd
 from basTab import *
-from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import Signal
 import sys
 
@@ -302,9 +301,9 @@ class txnTab:
 class txnTabMod(txnTab, basTabMod):
     __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
-        self.__err = ()
         txnTab.__init__(self)
         basTabMod.__init__(self, txnTab.table(self))
+        self.__nul = pd.DataFrame(float('nan'), [0], COL_TAG).astype({TAG_DT: 'datetime64[ns]'})
         if data is None:
             self.__update(txnTab.table(self))
         else:
@@ -359,39 +358,10 @@ class txnTabMod(txnTab, basTabMod):
             return True
         return False
 
-    def raise_error(
-        self, args: tuple,
-        prt: bool | None = True,
-        foreColor: bool | None = True,
-        backColor: bool | None = True,
-        msgBox: bool | None = True
-        ) -> None:
-        if type(args) is not tuple or len(args) == 0:
-            return
-        self.__err = args
-        if prt:
-            print(args[0])
-        self.beginResetModel()
-        basTabMod.table(self, self.__tab)
-        if len(args) >= 2 and type(args[1]) is set:
-            for v in args[1]:
-                if type(v) is tuple and len(v) == 4:
-                    if foreColor:
-                        self.setColor(FORE, COLOR_CRIT[FORE], v[0], v[1], v[2], v[3])
-                    if backColor:
-                        self.setColor(BACK, COLOR_CRIT[BACK], v[0], v[1], v[2], v[3])
-        self.endResetModel()
-        if msgBox:
-            if type(args[0]) is str:
-                QMessageBox.critical(None, 'ERROR', args[0])
-            else:
-                QMessageBox.critical(None, 'ERROR', str(args))
-        return
-
     def __update(self, tab: pd.DataFrame | None = None) -> None:
-        self.__err = ()
-        self.setColor(FORE, COLOR_CRIT[FORE])
-        self.setColor(BACK, COLOR_CRIT[BACK])
+        self.error = ()
+        self.setColor(FORE, COLOR[LV_CRIT][FORE])
+        self.setColor(BACK, COLOR[LV_CRIT][BACK])
         if tab is not None:
             self.__tab = tab
         rows = self.__tab.index.size
@@ -405,7 +375,7 @@ class txnTabMod(txnTab, basTabMod):
                 else:
                     row += 1
             if not self.__tab.iloc[-1, :].isna().all():
-                df = self.__tab.sort_values(by=self.__tab.columns[COL_DT], ignore_index=True)
+                df = self.__tab.sort_values(TAG_DT, ignore_index=True)
                 if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
                     self.__tab = df
                     mute = False
@@ -419,21 +389,18 @@ class txnTabMod(txnTab, basTabMod):
                     v = sys.exc_info()[1].args
                     if mute and self.isValid(self.__tab.iloc[:-1, :]):
                         if v[0] != 'Date data must be ascending.':
-                            self.raise_error(v, msgBox=False)
+                            self._raise(v, msgBox=False)
                     else:
-                        self.raise_error(v)
+                        self._raise(v)
                 else:
-                    self.__tab = pd.concat([
-                        self.__tab,
-                        pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})],
-                        ignore_index=True)
+                    self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
             else:
                 try:
                     self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
                 except:
-                    self.raise_error(sys.exc_info()[1].args)
+                    self._raise(sys.exc_info()[1].args)
         else:
-            self.__tab = pd.DataFrame(float('nan'), [0], self.__tab.columns).astype({TAG_DT: 'datetime64[ns]'})
+            self.__tab = self.__nul
         basTabMod.table(self, self.__tab)
         self.__txn_update.emit()
         self.endResetModel()
@@ -447,9 +414,6 @@ class txnTabMod(txnTab, basTabMod):
             return self.__tab
         return txnTab.table(self)
 
-    def get_error(self) -> tuple:
-        return self.__err
-
     def get_signal(self) -> Signal:
         return self.__txn_update
 
@@ -457,7 +421,7 @@ class txnTabMod(txnTab, basTabMod):
         try:
             self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         except:
-            self.raise_error(sys.exc_info()[1].args)
+            self._raise(sys.exc_info()[1].args)
         else:
             self.view.scrollToBottom()
         return self.__tab

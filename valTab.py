@@ -11,6 +11,10 @@ from txnTab import (
     COL_HS as TXN_COL_HS,
     COL_HP as TXN_COL_HP,
 )
+from db import (
+    GRP_FUND,
+    GRP_DICT,
+)
 
 URL_API = 'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode='
 HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
@@ -41,35 +45,40 @@ COL_TAG = [
 ]
 
 class valTab:
-    def __init__(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG)
-        self.__zeros = pd.DataFrame(columns=COL_TAG[COL_HA:])
-        self.__update(code, txn)
+        self.__nul = pd.DataFrame(columns=COL_TAG[COL_HA:])
+        self.__update(group, txn)
         return
 
     def __repr__(self) -> str:
         return self.__tab.to_string()
 
-    def __update(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
-        if code is not None:
-            try:
-                df = pd.read_xml(requests.get(f'{URL_API}{code}', headers=HEADER).text)
-                code_new = f'{df.iat[0, 0]:06.0f}'
-                if code_new != code:
-                    raise ValueError(f'Code does not match ({code_new} is not {code}).')
-                self.__code = code_new
-                self.__name = df.iat[1, 1]
-                self.__tab = df.iloc[2:, 2:5].astype({TAG_DT_RAW:'datetime64[ns]'}).drop_duplicates(ignore_index=True).sort_values(TAG_DT_RAW, ascending=False, ignore_index=True)
-                rows = self.__tab.index.size
-                self.__zeros = pd.DataFrame([[0., float('nan'), 0.]], index=range(rows), columns=COL_TAG[COL_HA:])
-                self.__tab = pd.concat([self.__tab, self.__zeros], axis=1)
-                self.__tab.columns = COL_TAG
-            except:
-                raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
+    def __update(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
+        if group is not None:
+            typ = GRP_DICT.get(group[0], None)
+            code = group[1:]
+            if typ == GRP_FUND:
+                try:
+                    df = pd.read_xml(requests.get(f'{URL_API}{code}', headers=HEADER).text)
+                    code_new = f'{df.iat[0, 0]:06.0f}'
+                    self.__code = code_new
+                    self.__name = df.iat[1, 1]
+                    self.__tab = df.iloc[2:, 2:5].astype({TAG_DT_RAW:'datetime64[ns]'}).drop_duplicates(ignore_index=True).sort_values(TAG_DT_RAW, ascending=False, ignore_index=True)
+                    rows = self.__tab.index.size
+                    self.__nul = pd.DataFrame([[0., float('nan'), 0.]], index=range(rows), columns=COL_TAG[COL_HA:])
+                    self.__tab = pd.concat([self.__tab, self.__nul], axis=1)
+                    self.__tab.columns = COL_TAG
+                except:
+                    if code_new != code:
+                        raise ValueError(f'Code does not match ({code_new} is not {code}).')
+                    raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
+            else:
+                raise ValueError(f'Asset type [{typ}] is not supported.')
         if txn is not None and self.__tab.index.size > 0 and txnTab().isValid(txn):
-            self.__tab.iloc[:, COL_HA:] = self.__zeros
+            self.__tab.iloc[:, COL_HA:] = self.__nul
             txnShr = txn.iloc[:, TXN_COL_BS].fillna(0.) - txn.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
@@ -94,22 +103,24 @@ class valTab:
     def get_name(self) -> str:
         return self.__name
 
-    def table(self, code: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
-        if code is not None or txn is not None:
-            self.__update(code, txn)
+    def table(self, group: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
+        if group is not None or txn is not None:
+            self.__update(group, txn)
         return self.__tab
 
 class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
-    def __init__(self, code: str | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
         try:
-            valTab.__init__(self, code, txn)
-            self.__tab = valTab.table(self).iloc[:, :COL_HP]
+            valTab.__init__(self, group, txn)
+            self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
         except:
-            self.__tab = valTab.table(self).iloc[:, :COL_HP]
+            self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
             self.__err_sig.emit(sys.exc_info()[1].args)
+        self.view.setColumnHidden(COL_HP, True)
+        self.view.setColumnHidden(COL_TS, True)
         self.view.setMinimumWidth(500)
         return
 
@@ -139,18 +150,16 @@ class valTabMod(valTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basTabMod.data(self, index, role)
 
-    def table(self, code: str | None = None, txn: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
-        if code is not None or txn is not None:
+    def table(self, group: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
+        if group is not None or txn is not None:
             try:
-                self.__tab = valTab.table(self, code, txn).iloc[:, :COL_HP]
+                self.__tab = valTab.table(self, group, txn)
             except:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             self.beginResetModel()
             basTabMod.table(self, self.__tab)
             self.endResetModel()
-        if view:
-            return self.__tab
-        return valTab.table(self)
+        return self.__tab
     
     def get_signal(self) -> Signal:
         return self.__err_sig
@@ -160,7 +169,7 @@ if __name__ == '__main__':
     app = QApplication()
     txn = txnTab()
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    val = valTabMod('519697', txn.table())
+    val = valTabMod('F519697', txn.table())
     val.show()
     print(val.get_code())
     print(val.get_name())

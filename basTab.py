@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget
+from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
 from PySide6.QtGui import QColor, QKeyEvent
 import pandas as pd
@@ -15,9 +15,14 @@ COLOR_WARN = (FORE_WARN, BACK_WARN)
 FORE_INFO = 0x00bfbf
 BACK_INFO = 0xdfffff
 COLOR_INFO = (FORE_INFO, BACK_INFO)
-FORE_GOOD = 0x00bf00
-BACK_GOOD = 0xdfffdf
-COLOR_GOOD = (FORE_GOOD, BACK_GOOD)
+
+LV_CRIT = 0
+LV_WARN = 1
+LV_INFO = 2
+
+COLOR = (COLOR_CRIT, COLOR_WARN, COLOR_INFO)
+MSG_BOX = (QMessageBox.critical, QMessageBox.warning, QMessageBox.information)
+MSG_TAG = ('CRITICAL', 'WARNING', 'INFORMATION')
 
 class basTabView(QTableView):
 
@@ -35,6 +40,7 @@ class basTabMod(QAbstractTableModel):
 
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
+        self.error = ()
         self.__tab = data
         if tabView:
             self.view = tabView()
@@ -57,13 +63,6 @@ class basTabMod(QAbstractTableModel):
         if parent == QModelIndex():
             return self.__tab.columns.size
         return 0
-
-    def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor:
-        for color, rects in colorMap.items():
-            for rect in rects:
-                if type(rect) is QRect:
-                    if rect.contains(col, row):
-                        return QColor(color)
 
     def data(self, index: QModelIndex, role: int) -> str | None:
         if not index.isValid():
@@ -99,9 +98,46 @@ class basTabMod(QAbstractTableModel):
 
     def setData(self, index, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
-            self.__tab.iat[index.row(), index.column()] = float(value)
+            self.__tab.iat[index.row(), index.column()] = value
             return True
         return False
+
+    def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor:
+        for color, rects in colorMap.items():
+            for rect in rects:
+                if type(rect) is QRect:
+                    if rect.contains(col, row):
+                        return QColor(color)
+
+    def _raise(
+        self, args: tuple,
+        level: int | None = LV_CRIT,
+        prt: bool | None = True,
+        foreColor: bool | None = True,
+        backColor: bool | None = True,
+        msgBox: bool | None = True
+        ) -> None:
+        if type(args) is not tuple or len(args) == 0:
+            return
+        self.error = args
+        if prt:
+            print(args[0])
+        self.beginResetModel()
+        basTabMod.table(self, self.__tab)
+        if len(args) >= 2 and type(args[1]) is set:
+            for v in args[1]:
+                if type(v) is tuple and len(v) == 4:
+                    if foreColor:
+                        self.setColor(FORE, COLOR[level][FORE], v[0], v[1], v[2], v[3])
+                    if backColor:
+                        self.setColor(BACK, COLOR[level][BACK], v[0], v[1], v[2], v[3])
+        self.endResetModel()
+        if msgBox:
+            if type(args[0]) is str:
+                MSG_BOX[level](None, MSG_TAG[level], args[0])
+            else:
+                MSG_BOX[level](None, MSG_TAG[level], str(args))
+        return
 
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:

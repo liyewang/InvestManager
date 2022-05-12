@@ -5,8 +5,13 @@ KEY_INF = 'INF'
 KEY_TXN = 'TXN'
 KEY_VAL = 'VAL'
 
+GRP_FUND = 'FUND'
+KEY_FUND = 'F'
 GRP_DICT = {
-    'F':'FUND'
+    KEY_FUND:GRP_FUND
+}
+KEY_DICT = {
+    GRP_FUND:KEY_FUND
 }
 
 class db:

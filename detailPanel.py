@@ -42,7 +42,7 @@ class detailPanel(QMainWindow):
         self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
         self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean()
         self.__txn.get_signal().connect(self.__update)
-        self.__val.get_signal().connect(self.__txn_error)
+        self.__val.get_signal().connect(self.__txn_raise)
 
         self.__plot_start = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
         self.__plot_range = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
@@ -254,13 +254,13 @@ class detailPanel(QMainWindow):
         return
 
     @Slot()
-    def __txn_error(self, args: tuple) -> None:
-        self.__txn.raise_error(args)
+    def __txn_raise(self, args: tuple) -> None:
+        self.__txn._raise(args)
         return
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         print(event)
-        if event.text() == '\u0003':
+        if event.text() == '\u0013':
             print('ok')
         return super().keyPressEvent(event)
 
@@ -270,6 +270,6 @@ if __name__ == '__main__':
     val = valTabMod()
     det = detailPanel(txn, val)
     det.show()
-    val.table(code='519697')
+    val.table(group='F519697')
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()
