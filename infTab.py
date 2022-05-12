@@ -10,17 +10,12 @@ from txnTab import (
 from valTab import (
     valTab,
     COL_DT as VAL_COL_DT,
-    COL_UV as VAL_COL_UV,
-    COL_NV as VAL_COL_NV,
     COL_HA as VAL_COL_HA,
-    COL_HP as VAL_COL_HP,
-    COL_TS as VAL_COL_TS,
 )
 from db import (
     KEY_INF,
     KEY_TXN,
     KEY_VAL,
-    GRP_FUND,
     GRP_DICT,
     KEY_DICT,
 )
@@ -237,17 +232,17 @@ class infTabMod(infTab, basTabMod):
                                 val = valTab(group, txn)
                                 infTab.set(self, group, val.get_name(), txn, val.table())
                             except:
-                                if self.__tab.iat[-1, COL_AN] or not self.__tab.iloc[row, COL_AN:].isna().all():
-                                    self._raise((sys.exc_info()[1].args[0]), LV_WARN, msgBox=False)
-                                else:
-                                    self._raise((sys.exc_info()[1].args[0]))
+                                val = valTab(None, txn, self.__db[group][KEY_VAL])
+                                name = self.__db[group][KEY_INF].iat[row, COL_AN]
+                                infTab.set(self, group, name, txn, val.table())
+                                self._raise((sys.exc_info()[1].args[0], {(0, row, self.__tab.columns.size, 1)}), LV_WARN, msgBox=False)
                             else:
                                 self.setColor(FORE, COLOR_GOOD[FORE], 0, row, self.__tab.columns.size, 1)
                                 self.setColor(BACK, COLOR_GOOD[BACK], 0, row, self.__tab.columns.size, 1)
                         else:
                             self.__tab.iloc[row, TAG_IA:] = 0.
                     except:
-                        self._raise(('Database error.'))
+                        self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, self.__tab.columns.size, 1)}))
                 else:
                     self.__tab.iloc[row, TAG_IA:] = 0.
             self.__tab.iloc[:-1, :] = self.get()
@@ -275,7 +270,7 @@ class infTabMod(infTab, basTabMod):
                 self.__tab.iloc[-1, :] = self.__nul
         else:
             self.__tab = self.__nul
-        basTabMod.table(self, self.__tab.iloc[:, COL_AT:])
+        basTabMod.table(self, self.__tab)
         self.endResetModel()
         return
 
@@ -288,10 +283,10 @@ class infTabMod(infTab, basTabMod):
         self.__update(self.get())
         return
 
-    def table(self, view: bool | None = None) -> pd.DataFrame:
-        if view:
+    def table(self, view: bool | None = False) -> pd.DataFrame:
+        if type(view) is bool and view:
             return self.__tab
-        return infTab.get()
+        return infTab.get(self)
 
 if __name__ == '__main__':
     app = QApplication()

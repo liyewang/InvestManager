@@ -15,7 +15,6 @@ from txnTab import (
 from valTab import (
     valTabMod,
     COL_DT as VAL_COL_DT,
-    COL_UV as VAL_COL_UV,
     COL_NV as VAL_COL_NV,
     COL_HA as VAL_COL_HA,
     COL_HP as VAL_COL_HP,

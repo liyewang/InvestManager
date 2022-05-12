@@ -45,18 +45,18 @@ COL_TAG = [
 ]
 
 class valTab:
-    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG)
         self.__nul = pd.DataFrame(columns=COL_TAG[COL_HA:])
-        self.__update(group, txn)
+        self.__update(group, txn, val)
         return
 
     def __repr__(self) -> str:
         return self.__tab.to_string()
 
-    def __update(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __update(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
         if group is not None:
             typ = GRP_DICT.get(group[0], None)
             code = group[1:]
@@ -77,6 +77,8 @@ class valTab:
                     raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
             else:
                 raise ValueError(f'Asset type [{typ}] is not supported.')
+        elif val is not None:
+            self.__tab = val
         if txn is not None and self.__tab.index.size > 0 and txnTab().isValid(txn):
             self.__tab.iloc[:, COL_HA:] = self.__nul
             txnShr = txn.iloc[:, TXN_COL_BS].fillna(0.) - txn.iloc[:, TXN_COL_SS].fillna(0.)
@@ -103,16 +105,16 @@ class valTab:
     def get_name(self) -> str:
         return self.__name
 
-    def table(self, group: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
-        if group is not None or txn is not None:
-            self.__update(group, txn)
+    def table(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (group is None and txn is None and val is None):
+            self.__update(group, txn, val)
         return self.__tab
 
 class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
-    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
         try:
-            valTab.__init__(self, group, txn)
+            valTab.__init__(self, group, txn, val)
             self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
         except:
@@ -150,10 +152,10 @@ class valTabMod(valTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basTabMod.data(self, index, role)
 
-    def table(self, group: str | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
-        if group is not None or txn is not None:
+    def table(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (group is None and txn is None and val is None):
             try:
-                self.__tab = valTab.table(self, group, txn)
+                self.__tab = valTab.table(self, group, txn, val)
             except:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             self.beginResetModel()
