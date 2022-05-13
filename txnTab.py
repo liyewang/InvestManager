@@ -419,12 +419,14 @@ class txnTabMod(txnTab, basTabMod):
 
     def read_csv(self, file: str) -> pd.DataFrame:
         try:
-            self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
+            tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
         except:
+            tab = None
             self._raise(sys.exc_info()[1].args)
         else:
+            self.__update(tab)
             self.view.scrollToBottom()
-        return self.__tab
+        return tab
 
 if __name__ == '__main__':
     app = QApplication()

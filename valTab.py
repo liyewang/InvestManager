@@ -1,3 +1,4 @@
+from matplotlib.pyplot import table
 import requests
 import pandas as pd
 import sys
@@ -110,6 +111,10 @@ class valTab:
             self.__update(group, txn, val)
         return self.__tab
 
+    def read_csv(self, file: str) -> pd.DataFrame:
+        self.__update(val=pd.read_csv(file))
+        return self.__tab
+
 class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
     def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
@@ -163,6 +168,14 @@ class valTabMod(valTab, basTabMod):
             self.endResetModel()
         return self.__tab
     
+    def read_csv(self, file: str) -> pd.DataFrame:
+        try:
+            tab = valTab.read_csv(self, file)
+        except:
+            tab = None
+            self._raise(sys.exc_info()[1].args)
+        return tab
+
     def get_signal(self) -> Signal:
         return self.__err_sig
 

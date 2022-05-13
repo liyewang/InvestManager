@@ -4,8 +4,11 @@ from basTab import *
 from txnTab import (
     txnTab,
     COL_BA as TXN_COL_BA,
+    COL_BS as TXN_COL_BS,
     COL_SA as TXN_COL_SA,
+    COL_SS as TXN_COL_SS,
     COL_HS as TXN_COL_HS,
+    COL_HP as TXN_COL_HP,
 )
 from valTab import (
     valTab,
@@ -92,28 +95,17 @@ class infTab:
         df.iat[0, COL_AC] = group[1:]
         df.iat[0, COL_AN] = name
         if txn and txn.index.size:
-            Amt = 0
-            txnAmt = txn.iloc[:, TXN_COL_BA].fillna(0.) - txn.iloc[:, TXN_COL_SA].fillna(0.)
             for i in range(txn.index.size):
-                Amt += txnAmt.iat[i]
+                Amt = txn.iat[i, TXN_COL_HP] * txn.iat[i, TXN_COL_HS]
                 if df.iat[0, COL_IA] < Amt:
                     df.iat[0, COL_IA] = Amt
             df.iat[0, COL_PA] = val.iat[0, VAL_COL_HA] + txn.iloc[:, TXN_COL_SA].sum() - txn.iloc[:, TXN_COL_BA].sum()
             df.iat[0, COL_HA] = val.iat[0, VAL_COL_HA]
             df.iat[0, COL_PR] = df.iat[0, COL_PA] / df.iat[0, COL_IA]
             if txn.iat[-1, TXN_COL_HS]:
-                df.iat[0, COL_AR] = txnTab(
-                    pd.concat([txn, pd.DataFrame([[
-                        val.iat[0, VAL_COL_DT],
-                        float('nan'),
-                        float('nan'),
-                        val.iat[0, VAL_COL_HA],
-                        txn.iat[-1, TXN_COL_HS],
-                        float('nan'),
-                        float('nan'),
-                        float('nan'),
-                    ]], columns=txn.columns)], ignore_index=True)
-                ).avgRate()
+                df.iat[0, COL_AR] = txnTab(pd.concat([txn, pd.DataFrame([[val.iat[0, VAL_COL_DT],
+                    float('nan'), float('nan'), val.iat[0, VAL_COL_HA], txn.iat[-1, TXN_COL_HS],
+                    float('nan'), float('nan'), float('nan')]], columns=txn.columns)], ignore_index=True)).avgRate()
             else:
                 df.iat[0, COL_AR] = txnTab(txn).avgRate()
         v = self.__tab.iloc[:, COL_AG] == group
@@ -287,6 +279,16 @@ class infTabMod(infTab, basTabMod):
         if type(view) is bool and view:
             return self.__tab
         return infTab.get(self)
+
+    def read_csv(self, file: str) -> pd.DataFrame:
+        try:
+            tab = infTab.read_csv(self, file)
+        except:
+            tab = None
+            self._raise(sys.exc_info()[1].args)
+        else:
+            self.__update(tab)
+        return tab
 
 if __name__ == '__main__':
     app = QApplication()
