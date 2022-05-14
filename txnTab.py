@@ -52,11 +52,11 @@ class txnTab:
 
     def __verify(self, data: pd.DataFrame) -> None:
         if type(data) is not pd.DataFrame:
-            raise TypeError('Unsupported data type.')
+            raise TypeError(f'Unsupported data type [{type(data)}].')
+        rects = set()
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            rects = set()
             for i in v.loc[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
@@ -77,48 +77,57 @@ class txnTab:
         if df.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
                 if type(df.iat[row, COL_DT]) is not pd.Timestamp:
-                    raise TypeError('Date type is required.', {(COL_DT, row, 1, 1)})
+                    rects.add((COL_DT, row, 1, 1))
+            if rects:
+                raise TypeError('Date type is required.', rects)
+            else:
+                raise TypeError('Date type is required.', {(COL_DT, 0, 1, rows)})
 
         for col in range(COL_BA, len(COL_TAG)):
             if df.dtypes[col] != 'float64':
-                v = None
                 for row in range(rows):
-                    try:
-                        float(df.iat[row, col])
-                    except:
-                        v = row
-                        break
-                raise ValueError('Numeric type is required.', {(col, v, 1, 1)})
+                    if type(df.iat[row, col]) is not float:
+                        rects.add((col, row, 1, 1))
+                if rects:
+                    raise ValueError('Numeric type is required.', rects)
+                else:
+                    raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
             v = df.iloc[:, col].isin([float('inf'), float('nan')])
-            v = v.loc[v]
-            if v.size:
-                raise ValueError('A finite number is required.', {(col, v.index[0], 1, 1)})
+            for row in v.loc[v].index:
+                rects.add((col, row, 1, 1))
+            if rects:
+                raise ValueError('A finite number is required.', rects)
 
         v = ((df.iloc[:, COL_BA] != 0) | (df.iloc[:, COL_BS] != 0)) & ((df.iloc[:, COL_SA] != 0) | (df.iloc[:, COL_SS] != 0))
-        v = v.loc[v]
-        if v.size:
-            raise ValueError('Buying and Selling data must be in separated rows.', {(COL_BA, v.index[0], 4, 1)})
+        for row in v.loc[v].index:
+            rects.add((COL_BA, row, 4, 1))
+        if rects:
+            raise ValueError('Buying and Selling data must be in separated rows.', rects)
 
         for col in {COL_BS, COL_SS}:
             v = df.iloc[:, col] < 0
-            v = v.loc[v]
-            if v.size:
-                raise ValueError('Negative Share is not allowed.', {(col, v.index[0], 1, 1)})
+            for row in v.loc[v].index:
+                rects.add((col, row, 1, 1))
+            if rects:
+                raise ValueError('Negative Share is not allowed.', rects)
 
         for col in {(COL_BA, COL_BS), (COL_SA, COL_SS)}:
             v = data.iloc[:, col[0]].isna() & ~data.iloc[:, col[1]].isna()
-            v = v.loc[v]
-            if v.size:
-                raise ValueError('Amount data is missing.', {(col[0], v.index[0], 1, 1)})
+            for row in v.loc[v].index:
+                rects.add((col[0], row, 1, 1))
+            if rects:
+                raise ValueError('Amount data is missing.', rects)
             v = (df.iloc[:, col[0]] / df.iloc[:, col[1]]).isin([float('inf')])
-            v = v.loc[v]
-            if v.size:
-                raise ValueError('Amount/Share must be finite.', {(col[0], v.index[0], 2, 1)})
+            for row in v.loc[v].index:
+                rects.add((col[0], row, 2, 1))
+            if rects:
+                raise ValueError('Amount/Share must be finite.', rects)
 
         v = (df.iloc[:, COL_BS] == 0) & (df.iloc[:, COL_SS] == 0)
-        v = v.loc[v]
-        if v.size:
-            raise ValueError('Transaction data is required.', {(COL_BA, v.index[0], COL_SS - COL_DT, 1)})
+        for row in v.loc[v].index:
+            rects.add((COL_BA, row, COL_SS - COL_DT, 1))
+        if rects:
+            raise ValueError('Transaction data is required.', rects)
 
         if (df.iloc[:, COL_DT].sort_values(ignore_index=True) != df.iloc[:, COL_DT]).any():
             dt_0 = pd.to_datetime(0)
@@ -307,7 +316,8 @@ class txnTabMod(txnTab, basTabMod):
         else:
             self.__update(data)
         self.view.setMinimumWidth(866)
-        self.view.scrollToBottom()
+        if not self.error:
+            self.view.scrollToBottom()
         return
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
@@ -363,7 +373,6 @@ class txnTabMod(txnTab, basTabMod):
         if tab is not None:
             self.__tab = tab
         rows = self.__tab.index.size
-        self.beginResetModel()
         if rows:
             row = 0
             while row < rows - 1:
@@ -389,6 +398,7 @@ class txnTabMod(txnTab, basTabMod):
                         if v[0] != 'Date data must be ascending.':
                             self._raise(v, msgBox=False)
                     else:
+                        basTabMod.table(self, self.__tab)
                         self._raise(v)
                 else:
                     self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
@@ -396,18 +406,20 @@ class txnTabMod(txnTab, basTabMod):
                 try:
                     self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
                 except:
+                    basTabMod.table(self, self.__tab)
                     self._raise(sys.exc_info()[1].args)
         else:
             self.__tab = self.__nul
-        basTabMod.table(self, self.__tab)
+        if not self.error:
+            basTabMod.table(self, self.__tab)
         self.__txn_update.emit()
-        self.endResetModel()
         return
 
     def table(self, data: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if data is not None:
             self.__update(data)
-            self.view.scrollToBottom()
+            if not self.error:
+                self.view.scrollToBottom()
         if view:
             return self.__tab
         return txnTab.table(self)
@@ -423,7 +435,8 @@ class txnTabMod(txnTab, basTabMod):
             self._raise(sys.exc_info()[1].args)
         else:
             self.__update(tab)
-            self.view.scrollToBottom()
+            if not self.error:
+                self.view.scrollToBottom()
         return tab
 
 if __name__ == '__main__':

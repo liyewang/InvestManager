@@ -1,3 +1,4 @@
+from PySide6.QtCore import Signal, Slot
 import pandas as pd
 import sys
 from basTab import *
@@ -71,11 +72,11 @@ class infTab:
 
     def __verify(self, data: pd.DataFrame) -> None:
         if type(data) is not pd.DataFrame:
-            raise TypeError('Unsupported data type.')
+            raise TypeError(f'Unsupported data type [{type(data)}].')
+        rects = set()
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            rects = set()
             for i in v.loc[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
@@ -94,19 +95,20 @@ class infTab:
 
         for col in range(COL_IA, len(COL_TAG)):
             if data.dtypes[col] != 'float64':
-                v = None
                 for row in range(rows):
-                    try:
-                        float(data.iat[row, col])
-                    except:
-                        v = row
-                        break
-                raise ValueError('Numeric type is required.', {(col, v, 1, 1)})
+                    if type(df.iat[row, col]) is not float:
+                        rects.add((col, row, 1, 1))
+                if rects:
+                    raise ValueError('Numeric type is required.', rects)
+                else:
+                    raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
 
         for row in range(rows):
-            for col in range(COL_AN):
+            for col in (COL_AG, COL_AT, COL_AC, COL_AN):
                 if type(data.iat[row, col]) is not str:
-                    raise TypeError('String type is required.', {(col, row, 1, 1)})
+                    rects.add((col, row, 1, 1))
+            if rects:
+                raise TypeError('String type is required.', rects)
             group = data.iat[row, COL_AG]
             if not group:
                 raise ValueError('Group data is empty.', {(0, row, data.columns.size, 1)})
@@ -117,7 +119,6 @@ class infTab:
         
         v = data.duplicated(COL_AG)
         if v.any():
-            rects = set()
             for row in v.loc[v].index:
                 rects.add((0, row, data.columns.size, 1))
             raise ValueError('No duplicated asset is allowed.', rects)
@@ -133,6 +134,10 @@ class infTab:
 
     def set(self, group: str, name: str, txn: pd.DataFrame, val: pd.DataFrame) -> pd.DataFrame:
         df = pd.DataFrame(columns=COL_TAG)
+        if type(group) is not str:
+            raise TypeError(f'Unsupported group type [{type(group)}].')
+        if not group:
+            raise ValueError('Group data is empty.')
         df.iat[0, COL_AG] = group
         df.iat[0, COL_AT] = GRP_DICT.get(group[0], None)
         df.iat[0, COL_AC] = group[1:]
@@ -182,7 +187,6 @@ class infTabView(QTableView):
         QTableView.__init__(self, parent)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.setAlternatingRowColors(True)
-        self.setAutoScroll(False)
         return
 
 class infTabMod(infTab, basTabMod):
@@ -245,8 +249,8 @@ class infTabMod(infTab, basTabMod):
         self.setColor(BACK, COLOR_GOOD[BACK])
         if tab is not None:
             self.__tab = tab
+            basTabMod.table(self, self.__tab)
         rows = self.__tab.index.size
-        self.beginResetModel()
         if rows:
             if index is None:
                 _range = range(rows - 1)
@@ -257,27 +261,33 @@ class infTabMod(infTab, basTabMod):
             for row in _range:
                 group = self.__tab.iat[row, COL_AG]
                 if not group:
-                    self._raise((f'Unsupported asset group [{group}].', {(0, row, self.__tab.columns.size, 1)}))
+                    self._raise(('Empty asset group.', {(0, row, self.__tab.columns.size, 1)}))
+                    return
                 if self.__db.get[group, None]:
                     try:
                         txn = self.__db[group][KEY_TXN]
                         if txn.index.size:
                             try:
                                 val = valTab(group, txn)
-                                infTab.set(self, group, val.get_name(), txn, val.table())
+                                self.set(group, val.get_name(), txn, val.table())
                             except:
                                 val = valTab(None, txn, self.__db[group][KEY_VAL])
                                 name = self.__db[group][KEY_INF].iat[row, COL_AN]
-                                infTab.set(self, group, name, txn, val.table())
+                                self.set(group, name, txn, val.table())
                                 self._raise((sys.exc_info()[1].args[0], {(0, row, self.__tab.columns.size, 1)}), LV_WARN, msgBox=False)
                             else:
+                                self.__tab = self.get()
+                                basTabMod.table(self, self.__tab)
                                 self.setColor(FORE, COLOR_GOOD[FORE], 0, row, self.__tab.columns.size, 1)
                                 self.setColor(BACK, COLOR_GOOD[BACK], 0, row, self.__tab.columns.size, 1)
                         else:
                             self.__tab.iloc[row, TAG_IA:] = 0.
                     except:
+                        basTabMod.table(self, self.__tab)
                         self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, self.__tab.columns.size, 1)}))
+                        return
                 else:
+                    self.set(group)
                     self.__tab.iloc[row, TAG_IA:] = 0.
             self.__tab.iloc[:-1, :] = self.get()
             typ = self.__tab.iat[-1, COL_AT]
@@ -289,23 +299,25 @@ class infTabMod(infTab, basTabMod):
                 txn = txnTab()
                 try:
                     val = valTab(group)
-                    infTab.set(self, group, val.get_name(), txn, val.table())
+                    self.set(group, val.get_name(), txn, val.table())
                 except:
+                    basTabMod.table(self, self.__tab)
                     self._raise((sys.exc_info()[1].args[0], {(0, rows - 1, self.__tab.columns.size, 1)}))
                 else:
                     self.setColor(FORE, COLOR_GOOD[FORE], 0, rows - 1, self.__tab.columns.size, 1)
                     self.setColor(BACK, COLOR_GOOD[BACK], 0, rows - 1, self.__tab.columns.size, 1)
-                    self.__tab = pd.concat([infTab.get(self), self.__nul], ignore_index=True)
+                    self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
             elif key:
+                basTabMod.table(self, self.__tab)
                 self._raise(('Asset code is required.', {(COL_AC, rows - 1, 1, 1)}), msgBox=False)
             elif code:
+                basTabMod.table(self, self.__tab)
                 self._raise(('Asset type is invalid.', {(COL_AT, rows - 1, 1, 1)}), msgBox=False)
             elif self.__tab.iat[-1, COL_AN] or not self.__tab.iloc[-1, COL_IA:].isna().all():
                 self.__tab.iloc[-1, :] = self.__nul
         else:
             self.__tab = self.__nul
         basTabMod.table(self, self.__tab)
-        self.endResetModel()
         return
 
     def load(self, db: dict) -> None:
@@ -320,7 +332,7 @@ class infTabMod(infTab, basTabMod):
     def table(self, view: bool | None = False) -> pd.DataFrame:
         if type(view) is bool and view:
             return self.__tab
-        return infTab.get(self)
+        return self.get()
 
     def read_csv(self, file: str) -> pd.DataFrame:
         try:

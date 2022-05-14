@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox
+from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox, QAbstractItemView
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
 from PySide6.QtGui import QColor, QKeyEvent
 import pandas as pd
@@ -32,7 +32,7 @@ class basTabView(QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.setAlternatingRowColors(True)
         # self.setSelectionBehavior(QTableView.SelectRows)
-        self.setAutoScroll(False)
+        # self.setAutoScroll(False)
         return
 
 class basTabMod(QAbstractTableModel):
@@ -103,9 +103,8 @@ class basTabMod(QAbstractTableModel):
     def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor:
         for color, rects in colorMap.items():
             for rect in rects:
-                if type(rect) is QRect:
-                    if rect.contains(col, row):
-                        return QColor(color)
+                if type(rect) is QRect and rect.contains(col, row):
+                    return QColor(color)
 
     def _raise(
         self, args: tuple,
@@ -121,7 +120,7 @@ class basTabMod(QAbstractTableModel):
         if prt:
             print(args[0])
         self.beginResetModel()
-        basTabMod.table(self, self.__tab)
+        idx = None
         if len(args) >= 2 and type(args[1]) is set:
             for v in args[1]:
                 if type(v) is tuple and len(v) == 4:
@@ -129,8 +128,20 @@ class basTabMod(QAbstractTableModel):
                         self.setColor(FORE, COLOR[level][FORE], v[0], v[1], v[2], v[3])
                     if backColor:
                         self.setColor(BACK, COLOR[level][BACK], v[0], v[1], v[2], v[3])
+                    if idx is None:
+                        for row in range(v[1], v[1] + v[3]):
+                            if not self.view.isRowHidden(row):
+                                for col in range(v[0], v[0] + v[2]):
+                                    if not self.view.isColumnHidden(col):
+                                        idx = self.index(row, col)
+                                        break
+                                break
         self.endResetModel()
         if msgBox:
+            if idx is not None:
+                self.view.scrollToBottom()
+                self.view.scrollToTop()
+                self.view.scrollTo(idx)
             if type(args[0]) is str:
                 MSG_BOX[level](None, MSG_TAG[level], args[0])
             else:
@@ -139,10 +150,12 @@ class basTabMod(QAbstractTableModel):
 
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:
+            self.beginResetModel()
             self.__tab = data
+            self.endResetModel()
         return self.__tab
 
-    def select(self, row: int | None = None, col: int | None = None) -> None:
+    def select(self, row: int | None = -1, col: int | None = -1) -> None:
         if row >= 0 and col >= 0:
             self.view.setCurrentIndex(self.index(row, col))
         elif row >= 0:
@@ -195,6 +208,5 @@ if __name__ == '__main__':
     
     tv = basTabMod(df)
     tv.show()
-    tv.select(1,1)
 
     app.exec()

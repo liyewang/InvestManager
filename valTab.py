@@ -63,11 +63,11 @@ class valTab:
 
     def __verify(self, data: pd.DataFrame) -> None:
         if type(data) is not pd.DataFrame:
-            raise TypeError('Unsupported data type.')
+            raise TypeError(f'Unsupported data type [{type(data)}].')
+        rects = set()
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            rects = set()
             for i in v.loc[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
@@ -88,17 +88,20 @@ class valTab:
         if df.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
                 if type(df.iat[row, COL_DT]) is not pd.Timestamp:
-                    raise TypeError('Date type is required.', {(COL_DT, row, 1, 1)})
+                    rects.add((COL_DT, row, 1, 1))
+            if rects:
+                raise TypeError('Date type is required.', rects)
+            else:
+                raise TypeError('Date type is required.', {(COL_DT, 0, 1, rows)})
         for col in range(COL_UV, len(COL_TAG)):
             if df.dtypes[col] != 'float64':
-                v = None
                 for row in range(rows):
-                    try:
-                        float(df.iat[row, col])
-                    except:
-                        v = row
-                        break
-                raise ValueError('Numeric type is required.', {(col, v, 1, 1)})
+                    if type(df.iat[row, col]) is not float:
+                        rects.add((col, row, 1, 1))
+                if rects:
+                    raise ValueError('Numeric type is required.', rects)
+                else:
+                    raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
 
         if (df.iloc[:, COL_DT].sort_values(ascending=False, ignore_index=True) != df.iloc[:, COL_DT]).any():
             dt_0 = pd.to_datetime(0)
@@ -171,7 +174,7 @@ class valTab:
         return self.__tab
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__update(val=pd.read_csv(file))
+        self.__update(val=pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
         return self.__tab
 
 class valTabMod(valTab, basTabMod):
@@ -221,24 +224,30 @@ class valTabMod(valTab, basTabMod):
 
     def table(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
         if not (data is None and txn is None):
+            self.error = ()
+            if type(data) is pd.DataFrame:
+                self.__tab = data
             try:
                 self.__tab = valTab.table(self, data, txn)
             except:
+                basTabMod.table(self, self.__tab)
                 if sys.exc_info()[1].args[0] == TXN_ERR:
                     self.__err_sig.emit(sys.exc_info()[1].args)
                 else:
                     self._raise(sys.exc_info()[1].args)
-            self.beginResetModel()
-            basTabMod.table(self, self.__tab)
-            self.endResetModel()
+            else:
+                basTabMod.table(self, self.__tab)
         return self.__tab
     
     def read_csv(self, file: str) -> pd.DataFrame:
+        self.error = ()
         try:
-            tab = valTab.read_csv(self, file)
+            tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
         except:
             tab = None
             self._raise(sys.exc_info()[1].args)
+        else:
+            self.table(tab)
         return tab
 
     def get_signal(self) -> Signal:
