@@ -55,10 +55,9 @@ class txnTab:
             raise TypeError('Unsupported data type.')
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
-        v = v.loc[v]
-        if v.size:
+        if v.any():
             rects = set()
-            for i in v.index:
+            for i in v.loc[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
                 rects.add((sz, -1, data.columns.size - sz, 1))
@@ -71,9 +70,8 @@ class txnTab:
         if rows == 0:
             return
         v = pd.Series(data.index != range(rows))
-        v = v.loc[v]
-        if v.size:
-            raise ValueError('Index error.', {(-1, v.index[0], 1, 1)})
+        if v.any():
+            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
         if df.dtypes[COL_DT] != 'datetime64[ns]':
@@ -282,7 +280,7 @@ class txnTab:
         self.__MaxAmtResErr = MaxAmtResErr
         return
 
-    def isValid(self, data=None) -> bool:
+    def isValid(self, data: pd.DataFrame) -> bool:
         try:
             self.__verify(data)
         except:

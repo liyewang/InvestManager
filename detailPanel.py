@@ -269,6 +269,6 @@ if __name__ == '__main__':
     val = valTabMod()
     det = detailPanel(txn, val)
     det.show()
-    val.table(group='F519697')
+    val.table('F519697')
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

@@ -25,7 +25,6 @@ MSG_BOX = (QMessageBox.critical, QMessageBox.warning, QMessageBox.information)
 MSG_TAG = ('CRITICAL', 'WARNING', 'INFORMATION')
 
 class basTabView(QTableView):
-
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
         # self.resize(1280, 720)
@@ -37,7 +36,6 @@ class basTabView(QTableView):
         return
 
 class basTabMod(QAbstractTableModel):
-
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.error = ()

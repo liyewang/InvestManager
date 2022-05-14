@@ -45,22 +45,74 @@ COL_TAG = [
     TAG_TS,
 ]
 
+TXN_ERR = 'Transaction date does not exist.'
+
 class valTab:
-    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG)
         self.__nul = pd.DataFrame(columns=COL_TAG[COL_HA:])
-        self.__update(group, txn, val)
+        self.__update(data, txn)
         return
 
     def __repr__(self) -> str:
         return self.__tab.to_string()
 
-    def __update(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
-        if group is not None:
-            typ = GRP_DICT.get(group[0], None)
-            code = group[1:]
+    def __verify(self, data: pd.DataFrame) -> None:
+        if type(data) is not pd.DataFrame:
+            raise TypeError('Unsupported data type.')
+        sz = min(data.columns.size, len(COL_TAG))
+        v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
+        if v.any():
+            rects = set()
+            for i in v.loc[v].index:
+                rects.add((i, -1, 1, 1))
+            if sz < data.columns.size:
+                rects.add((sz, -1, data.columns.size - sz, 1))
+            raise ValueError('Column title error.', rects)
+        elif sz < data.columns.size:
+            raise ValueError('Column title error.', {(sz, -1, data.columns.size - sz, 1)})
+        elif sz < len(COL_TAG):
+            raise ValueError('Column title error.', {(0, -1, data.columns.size, 1)})
+        rows = data.index.size
+        if rows == 0:
+            return
+        v = pd.Series(data.index != range(rows))
+        if v.any():
+            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
+        df = data.fillna(0.)
+
+        if df.dtypes[COL_DT] != 'datetime64[ns]':
+            for row in range(rows):
+                if type(df.iat[row, COL_DT]) is not pd.Timestamp:
+                    raise TypeError('Date type is required.', {(COL_DT, row, 1, 1)})
+        for col in range(COL_UV, len(COL_TAG)):
+            if df.dtypes[col] != 'float64':
+                v = None
+                for row in range(rows):
+                    try:
+                        float(df.iat[row, col])
+                    except:
+                        v = row
+                        break
+                raise ValueError('Numeric type is required.', {(col, v, 1, 1)})
+
+        if (df.iloc[:, COL_DT].sort_values(ascending=False, ignore_index=True) != df.iloc[:, COL_DT]).any():
+            dt_0 = pd.to_datetime(0)
+            for row in range(rows):
+                dt = pd.to_datetime(df.iat[row, COL_DT])
+                if dt >= dt_0:
+                    raise ValueError('Date data must be descending.', {(COL_DT, row, 1, 1)})
+                dt_0 = dt
+        return
+
+    def __update(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
+        if type(data) is str:
+            if not data:
+                raise ValueError('Group data is empty.')
+            typ = GRP_DICT.get(data[0], None)
+            code = data[1:]
             if typ == GRP_FUND:
                 try:
                     df = pd.read_xml(requests.get(f'{URL_API}{code}', headers=HEADER).text)
@@ -74,13 +126,16 @@ class valTab:
                     self.__tab.columns = COL_TAG
                 except:
                     if code_new != code:
-                        raise ValueError(f'Code does not match ({code_new} is not {code}).')
+                        raise ValueError(f'Asset code [{code_new}] mismatches the group code [{code}].')
                     raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
             else:
-                raise ValueError(f'Asset type [{typ}] is not supported.')
-        elif val is not None:
-            self.__tab = val
-        if txn is not None and self.__tab.index.size > 0 and txnTab().isValid(txn):
+                raise ValueError(f'Unsupported asset type [{typ}].')
+        elif type(data) is pd.DataFrame:
+            self.__tab = data.astype({TAG_DT: 'datetime64[ns]'}).sort_values(TAG_DT, ascending=False, ignore_index=True)
+        elif data is not None:
+            raise TypeError(f'Unsupported data type [{type(data)}].')
+        self.__verify(self.__tab)
+        if txn is not None and self.__tab.index.size > 0:
             self.__tab.iloc[:, COL_HA:] = self.__nul
             txnShr = txn.iloc[:, TXN_COL_BS].fillna(0.) - txn.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
@@ -88,7 +143,7 @@ class valTab:
             for i in range(txn.index.size - 1, -1, -1):
                 df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == txn.iat[i, TXN_COL_DT]]
                 if df.index.size == 0:
-                    raise ValueError('Transaction date does not exist.', {(TXN_COL_DT, i, 1, 1)})
+                    raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
                     * (txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
@@ -106,9 +161,9 @@ class valTab:
     def get_name(self) -> str:
         return self.__name
 
-    def table(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> pd.DataFrame:
-        if not (group is None and txn is None and val is None):
-            self.__update(group, txn, val)
+    def table(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (data is None and txn is None):
+            self.__update(data, txn)
         return self.__tab
 
     def read_csv(self, file: str) -> pd.DataFrame:
@@ -117,15 +172,18 @@ class valTab:
 
 class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
-    def __init__(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
         try:
-            valTab.__init__(self, group, txn, val)
+            valTab.__init__(self, data, txn)
             self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
         except:
             self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
-            self.__err_sig.emit(sys.exc_info()[1].args)
+            if sys.exc_info()[1].args[0] == TXN_ERR:
+                self.__err_sig.emit(sys.exc_info()[1].args)
+            else:
+                self._raise(sys.exc_info()[1].args)
         self.view.setColumnHidden(COL_HP, True)
         self.view.setColumnHidden(COL_TS, True)
         self.view.setMinimumWidth(500)
@@ -157,12 +215,15 @@ class valTabMod(valTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basTabMod.data(self, index, role)
 
-    def table(self, group: str | None = None, txn: pd.DataFrame | None = None, val: pd.DataFrame | None = None) -> pd.DataFrame:
-        if not (group is None and txn is None and val is None):
+    def table(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (data is None and txn is None):
             try:
-                self.__tab = valTab.table(self, group, txn, val)
+                self.__tab = valTab.table(self, data, txn)
             except:
-                self.__err_sig.emit(sys.exc_info()[1].args)
+                if sys.exc_info()[1].args[0] == TXN_ERR:
+                    self.__err_sig.emit(sys.exc_info()[1].args)
+                else:
+                    self._raise(sys.exc_info()[1].args)
             self.beginResetModel()
             basTabMod.table(self, self.__tab)
             self.endResetModel()

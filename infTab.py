@@ -72,12 +72,55 @@ class infTab:
     def __verify(self, data: pd.DataFrame) -> None:
         if type(data) is not pd.DataFrame:
             raise TypeError('Unsupported data type.')
-        for row in range(data.index.size):
-            group = data.iat[0, COL_AG]
-            if GRP_DICT.get(group[0], None) != data.iat[0, COL_AT]:
-                raise ValueError('Asset group does not match the asset type.', {(COL_AG, row, 2, 1)})
-            if group[1:] != data.iat[0, COL_AC]:
-                raise ValueError('Asset group does not match the asset code.', {(COL_AG, row, 1, 1), (COL_AC, row, 1, 1)})
+        sz = min(data.columns.size, len(COL_TAG))
+        v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
+        if v.any():
+            rects = set()
+            for i in v.loc[v].index:
+                rects.add((i, -1, 1, 1))
+            if sz < data.columns.size:
+                rects.add((sz, -1, data.columns.size - sz, 1))
+            raise ValueError('Column title error.', rects)
+        elif sz < data.columns.size:
+            raise ValueError('Column title error.', {(sz, -1, data.columns.size - sz, 1)})
+        elif sz < len(COL_TAG):
+            raise ValueError('Column title error.', {(0, -1, data.columns.size, 1)})
+        rows = data.index.size
+        if rows == 0:
+            return
+        v = pd.Series(data.index != range(rows))
+        if v.any():
+            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
+
+        for col in range(COL_IA, len(COL_TAG)):
+            if data.dtypes[col] != 'float64':
+                v = None
+                for row in range(rows):
+                    try:
+                        float(data.iat[row, col])
+                    except:
+                        v = row
+                        break
+                raise ValueError('Numeric type is required.', {(col, v, 1, 1)})
+
+        for row in range(rows):
+            for col in range(COL_AN):
+                if type(data.iat[row, col]) is not str:
+                    raise TypeError('String type is required.', {(col, row, 1, 1)})
+            group = data.iat[row, COL_AG]
+            if not group:
+                raise ValueError('Group data is empty.', {(0, row, data.columns.size, 1)})
+            if GRP_DICT.get(group[0], None) != data.iat[row, COL_AT]:
+                raise ValueError('Asset group mismatches the asset type.', {(COL_AG, row, 2, 1)})
+            if group[1:] != data.iat[row, COL_AC]:
+                raise ValueError('Asset group mismatches the asset code.', {(COL_AG, row, 1, 1), (COL_AC, row, 1, 1)})
+        
+        v = data.duplicated(COL_AG)
+        if v.any():
+            rects = set()
+            for row in v.loc[v].index:
+                rects.add((0, row, data.columns.size, 1))
+            raise ValueError('No duplicated asset is allowed.', rects)
         return
 
     def load(self, db: dict) -> None:
@@ -130,13 +173,11 @@ class infTab:
         return
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__tab = pd.read_csv(file)
-        self.__tab.sort_values(TAG_HA, ascending=False, ignore_index=True, inplace=True)
+        self.__tab = pd.read_csv(file).sort_values(TAG_HA, ascending=False, ignore_index=True)
         self.__verify(self.__tab)
         return self.__tab
 
 class infTabView(QTableView):
-
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -149,7 +190,8 @@ class infTabMod(infTab, basTabMod):
         infTab.__init__(self)
         basTabMod.__init__(self, self.get(), infTabView)
         self.__nul = pd.DataFrame([['', '', '', '', float('nan'), float('nan'), float('nan'), float('nan'), float('nan')]], [0], COL_TAG)
-        self.load(self, db)
+        if db:
+            self.load(self, db)
         self.view.setColumnHidden(COL_AG, True)
         self.view.setMinimumWidth(866)
         return
@@ -292,4 +334,6 @@ class infTabMod(infTab, basTabMod):
 
 if __name__ == '__main__':
     app = QApplication()
+    inf = infTabMod()
+    inf.show()
     app.exec()
