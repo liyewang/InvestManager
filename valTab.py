@@ -11,6 +11,7 @@ from txnTab import (
     COL_SS as TXN_COL_SS,
     COL_HS as TXN_COL_HS,
     COL_HP as TXN_COL_HP,
+    COL_TAG as TXN_COL_TAG,
 )
 from db import (
     GRP_FUND,
@@ -53,6 +54,7 @@ class valTab:
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG)
         self.__nul = pd.DataFrame(columns=COL_TAG[COL_HA:])
+        self.__txn = pd.DataFrame(columns=TXN_COL_TAG)
         self.__update(data, txn)
         return
 
@@ -135,23 +137,25 @@ class valTab:
         elif data is not None:
             raise TypeError(f'Unsupported data type [{type(data)}].')
         self.__verify(self.__tab)
-        if txn is not None and self.__tab.index.size > 0:
+        if txn is not None:
+            self.__txn = txn
+        if (data or txn is not None) and self.__tab.index.size > 0:
             self.__tab.iloc[:, COL_HA:] = self.__nul
-            txnShr = txn.iloc[:, TXN_COL_BS].fillna(0.) - txn.iloc[:, TXN_COL_SS].fillna(0.)
+            txnShr = self.__txn.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
-            for i in range(txn.index.size - 1, -1, -1):
-                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == txn.iat[i, TXN_COL_DT]]
+            for i in range(self.__txn.index.size - 1, -1, -1):
+                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn.iat[i, TXN_COL_DT]]
                 if df.index.size == 0:
                     raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
-                    * (txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
+                    * (self.__txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0:
-                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + txn.iat[i, TXN_COL_HP]
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn.iat[i, TXN_COL_HP]
                     row_HP = df.index[-1] + 1
-                elif not txn.iat[i, TXN_COL_HS]:
+                elif not self.__txn.iat[i, TXN_COL_HS]:
                     row_HP = df.index[-1] + 1
         return
 
