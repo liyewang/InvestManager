@@ -394,7 +394,11 @@ class txnTabMod(txnTab, basTabMod):
                     self.__tab = txnTab.table(self, self.__tab)
                 except:
                     v = sys.exc_info()[1].args
-                    if mute and self.isValid(self.__tab.iloc[:-1, :]):
+                    if mute and len(v) >= 2 and type(v[1]) is set:
+                        for e in v[1]:
+                            if type(e) is tuple and len(e) == 4 and e[1] != rows - 1:
+                                mute = False
+                    if mute:
                         if v[0] != 'Date data must be ascending.':
                             self._raise(v, msgBox=False)
                     else:
