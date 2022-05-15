@@ -32,7 +32,7 @@ class basTabView(QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.setAlternatingRowColors(True)
         # self.setSelectionBehavior(QTableView.SelectRows)
-        # self.setAutoScroll(False)
+        self.setAutoScroll(False)
         return
 
 class basTabMod(QAbstractTableModel):
@@ -140,7 +140,6 @@ class basTabMod(QAbstractTableModel):
         if msgBox:
             if idx is not None:
                 self.view.scrollToBottom()
-                self.view.scrollToTop()
                 self.view.scrollTo(idx)
             if type(args[0]) is str:
                 MSG_BOX[level](None, MSG_TAG[level], args[0])
@@ -156,6 +155,8 @@ class basTabMod(QAbstractTableModel):
         return self.__tab
 
     def select(self, row: int | None = -1, col: int | None = -1) -> None:
+        auto = self.view.hasAutoScroll()
+        self.view.setAutoScroll(True)
         if row >= 0 and col >= 0:
             self.view.setCurrentIndex(self.index(row, col))
         elif row >= 0:
@@ -164,6 +165,7 @@ class basTabMod(QAbstractTableModel):
             self.view.selectColumn(col)
         else:
             self.view.selectAll()
+        self.view.setAutoScroll(auto)
         return
 
     def setColor(
