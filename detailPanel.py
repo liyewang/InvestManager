@@ -5,18 +5,11 @@ from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
-import pandas as pd
-from txnTab import (
-    txnTabMod,
-    COL_BA as TXN_COL_BA,
-    COL_SA as TXN_COL_SA,
-    COL_HS as TXN_COL_HS,
-)
+from txnTab import txnTabMod
 from valTab import (
     valTabMod,
     COL_DT as VAL_COL_DT,
     COL_NV as VAL_COL_NV,
-    COL_HA as VAL_COL_HA,
     COL_HP as VAL_COL_HP,
     COL_TS as VAL_COL_TS,
 )
@@ -103,26 +96,15 @@ class detailPanel(QMainWindow):
     @Slot()
     def __plot_start_update(self, start: int | None = None) -> None:
         size = self.__tab.index.size
-        valid = False
         if size:
             self.__start_min = 1
             self.__start_max = size
             if start is not None and start >= self.__start_min and start <= self.__start_max:
                 self.__start = start
-                self.__range_max = size - self.__start + 1
-                if min(size, self.__range_max) < 5:
-                    self.__range_min = min(size, self.__range_max)
-                else:
-                    self.__range_min = 5
-                valid = True
-            else:
-                if self.__start < self.__start_min or self.__start > self.__start_max:
-                    self.__start = self.__start_min
-                self.__range_max = size - self.__start + 1
-                if min(size, self.__range_max) < 5:
-                    self.__range_min = min(size, self.__range_max)
-                else:
-                    self.__range_min = 5
+            elif self.__start < self.__start_min or self.__start > self.__start_max:
+                self.__start = self.__start_min
+            self.__range_max = size - self.__start + 1
+            self.__range_min = min(self.__range_max, 5)
         else:
             self.__start_min = 0
             self.__start_max = 0
@@ -145,7 +127,7 @@ class detailPanel(QMainWindow):
         self.__plot_range.valueChanged.connect(self.__plot_range_update)
         self.__plot_start_title.setText(f'Start: {self.__start}')
         self.__plot_range_title.setText(f'Range: {self.__range}')
-        if valid:
+        if size:
             self.__plot()
         return
 
@@ -167,21 +149,21 @@ class detailPanel(QMainWindow):
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
-            val = self.__tab.iloc[head:tail, VAL_COL_NV]
+            nv = self.__tab.iloc[head:tail, VAL_COL_NV]
             v = self.__tab.iloc[head:tail, VAL_COL_TS] > 0
             txnBA = (
                 self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
-                val.loc[v],
+                nv.loc[v],
             )
             v = self.__tab.iloc[head:tail, VAL_COL_TS] < 0
             txnSA = (
                 self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
-                val.loc[v],
+                nv.loc[v],
             )
             self.__ax.clear()
             self.__ax2.clear()
             self.__ax.plot(
-                date, val,
+                date, nv,
                 date, self.__avg125[head:tail],
                 date, self.__avg250[head:tail],
                 date, self.__avg500[head:tail],
@@ -196,41 +178,14 @@ class detailPanel(QMainWindow):
                 fontsize=16, fontproperties=self.__font)
             self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling', 'Holding Price'])
             self.__ax.margins(x=0)
-            self.__ax2.set_ylim((self.__ax.set_ylim() / val.iat[0] - 1) * 100)
+            self.__ax2.set_ylim((self.__ax.set_ylim() / nv.iat[0] - 1) * 100)
             self.__ax2.set_ylabel('Profit Rate (%)')
         self.__ax.grid(True)
         self.__canvas.draw()
         return
 
-    def get_stat(self) -> dict:
-        txn = self.__txn.table()
-        stat = {TAG_IA:float('nan'), TAG_PA:float('nan'), TAG_HA:float('nan'),
-                TAG_PR:float('nan'), TAG_AR:float('nan')}
-        if txn.index.size:
-            stat[TAG_IA] = txn.iloc[:, TXN_COL_BA].sum()
-            if self.__tab.index.size:
-                stat[TAG_PA] = txn.iloc[:, TXN_COL_SA].sum() + self.__tab.iat[-1, VAL_COL_HA] - stat[TAG_IA]
-                stat[TAG_HA] = self.__tab.iat[-1, VAL_COL_HA]
-                stat[TAG_PR] = stat[TAG_PA] / stat[TAG_IA]
-                if txn.iat[-1, TXN_COL_HS]:
-                    stat[TAG_AR] = self.__txn.avgRate(
-                        pd.concat([txn, pd.DataFrame([[
-                            self.__tab.iat[-1, VAL_COL_DT],
-                            float('nan'),
-                            float('nan'),
-                            self.__tab.iat[-1, VAL_COL_HA],
-                            txn.iat[-1, TXN_COL_HS],
-                            float('nan'),
-                            float('nan'),
-                            float('nan'),
-                        ]], columns=txn.columns)], ignore_index=True)
-                    )
-                else:
-                    stat[TAG_AR] = self.__txn.avgRate()
-        return stat
-
     def __show_stat(self) -> None:
-        d = self.get_stat()
+        d = {TAG_IA:0, TAG_PA:0, TAG_PR:0, TAG_AR:0}
         s  = f'{TAG_IA}\t{d[TAG_IA]:12,.2f}\n'
         s += f'{TAG_PA}\t{d[TAG_PA]:12,.2f}\n'
         s += f'{TAG_PR}\t{d[TAG_PR] * 100:11,.2f}%\n'
@@ -240,7 +195,7 @@ class detailPanel(QMainWindow):
 
     @Slot()
     def __update(self) -> None:
-        self.__val.table(txn=self.__txn.table())
+        self.__val.table(txn_tab=self.__txn.table())
         self.__tab = self.__val.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, VAL_COL_DT]
         self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
@@ -269,6 +224,6 @@ if __name__ == '__main__':
     val = valTabMod()
     det = detailPanel(txn, val)
     det.show()
-    val.table('F519697')
+    val.table('FUND_519697')
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

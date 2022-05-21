@@ -4,8 +4,6 @@ from db import (
     KEY_INF,
     KEY_TXN,
     KEY_VAL,
-    GRP_DICT,
-    KEY_DICT,
 )
 
 TAG_IA = 'Invest Amount'

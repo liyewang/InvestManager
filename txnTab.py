@@ -38,13 +38,11 @@ COL_TAG = [
 
 class txnTab:
     def __init__(self, data: pd.DataFrame | None = None) -> None:
+        self.__tab = pd.DataFrame(columns=COL_TAG)
+        self.__avg = float('nan')
         self.config()
-        self.__avgRate = float('nan')
-        if data is None:
-            self.__tab = pd.DataFrame(columns=COL_TAG)
-        else:
-            self.__verify(data)
-            self.__tab = self.__calcTab(data)
+        if data is not None:
+            self.__calcTab(data)
         return
 
     def __repr__(self) -> str:
@@ -139,11 +137,11 @@ class txnTab:
 
         return
 
-    def __calcTab(self, data: pd.DataFrame) -> pd.DataFrame:
+    def __calcTab(self, data: pd.DataFrame) -> None:
         self.__verify(data)
         rows = data.index.size
         if rows == 0:
-            return data
+            return data.copy()
         _data = data.copy()
         df = data.fillna(0.)
 
@@ -230,16 +228,16 @@ class txnTab:
         _data.iloc[:, COL_RR] = RateMat
 
         if RateSz == 0:
-            self.__avgRate = float('nan')
+            _avg = float('nan')
         elif RateSz == 1:
-            self.__avgRate = Rate
+            _avg = Rate
         elif RateSz > 1:
             AmtResPrev = 0
             RatePrev = 0
-            if pd.isna(self.__avgRate):
+            if pd.isna(self.__avg):
                 Rate = 0
             else:
-                Rate = self.__avgRate
+                Rate = self.__avg
             for count in range(self.__MaxCount):
                 if Rate < -1:
                     RateSign = -1
@@ -265,14 +263,10 @@ class txnTab:
                 AmtResPrev = AmtRes
             if count > 0:
                 raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
-            self.__avgRate = Rate
-
-        return _data
-
-    def avgRate(self, data: pd.DataFrame | None = None) -> float:
-        if data is not None:
-            self.__calcTab(data)
-        return self.__avgRate
+            _avg = Rate
+        self.__tab = _data
+        self.__avg = _avg
+        return
 
     def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
         MaxCount = pd.to_numeric(MaxCount, errors='coerce')
@@ -298,12 +292,17 @@ class txnTab:
 
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:
-            self.__tab = self.__calcTab(data)
-        return self.__tab
+            self.__calcTab(data)
+        return self.__tab.copy()
+
+    def avgRate(self, data: pd.DataFrame | None = None) -> float:
+        if data is not None:
+            self.__calcTab(data)
+        return self.__avg
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__tab = self.__calcTab(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
-        return self.__tab
+        self.__calcTab(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
+        return self.__tab.copy()
 
 class txnTabMod(txnTab, basTabMod):
     __txn_update = Signal()
@@ -324,7 +323,6 @@ class txnTabMod(txnTab, basTabMod):
         if index.column() < COL_HS:
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
-
 
     def data(self, index: QModelIndex, role: int) -> str | None:
         if not index.isValid():
@@ -371,7 +369,7 @@ class txnTabMod(txnTab, basTabMod):
         self.setColor(FORE, COLOR[LV_CRIT][FORE])
         self.setColor(BACK, COLOR[LV_CRIT][BACK])
         if tab is not None:
-            self.__tab = tab
+            self.__tab = tab.copy()
         rows = self.__tab.index.size
         if rows:
             row = 0
@@ -413,10 +411,10 @@ class txnTabMod(txnTab, basTabMod):
                     basTabMod.table(self, self.__tab)
                     self._raise(sys.exc_info()[1].args)
         else:
-            self.__tab = self.__nul
+            self.__tab = self.__nul.copy()
         if not self.error:
             basTabMod.table(self, self.__tab)
-        self.__txn_update.emit()
+            self.__txn_update.emit()
         return
 
     def table(self, data: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
@@ -425,23 +423,23 @@ class txnTabMod(txnTab, basTabMod):
             if not self.error:
                 self.view.scrollToBottom()
         if view:
-            return self.__tab
+            return self.__tab.copy()
         return txnTab.table(self)
 
-    def get_signal(self) -> Signal:
-        return self.__txn_update
-
-    def read_csv(self, file: str) -> pd.DataFrame:
+    def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
             tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
         except:
-            tab = None
             self._raise(sys.exc_info()[1].args)
+            return None
         else:
             self.__update(tab)
             if not self.error:
                 self.view.scrollToBottom()
-        return tab
+        return txnTab.table(self)
+
+    def get_signal(self) -> Signal:
+        return self.__txn_update
 
 if __name__ == '__main__':
     app = QApplication()

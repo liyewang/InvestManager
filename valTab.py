@@ -14,14 +14,9 @@ from txnTab import (
     COL_TAG as TXN_COL_TAG,
 )
 from db import (
+    group_info,
     GRP_FUND,
-    GRP_DICT,
 )
-
-URL_API = 'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode='
-HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
-
-TAG_DT_RAW = 'fld_enddate'
 
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
@@ -49,13 +44,12 @@ COL_TAG = [
 TXN_ERR = 'Transaction date does not exist.'
 
 class valTab:
-    def __init__(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG)
-        self.__nul = pd.DataFrame(columns=COL_TAG[COL_HA:])
-        self.__txn = pd.DataFrame(columns=TXN_COL_TAG)
-        self.__update(data, txn)
+        self.__txn_tab = pd.DataFrame(columns=TXN_COL_TAG)
+        self.__update(data, txn_tab)
         return
 
     def __repr__(self) -> str:
@@ -112,22 +106,21 @@ class valTab:
                 dt_0 = dt
         return
 
-    def __update(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __update(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         if type(data) is str:
-            if not data:
-                raise ValueError('Group data is empty.')
-            typ = GRP_DICT.get(data[0], None)
-            code = data[1:]
+            typ, code = group_info(data)
             if typ == GRP_FUND:
                 try:
-                    df = pd.read_xml(requests.get(f'{URL_API}{code}', headers=HEADER).text)
+                    df = pd.read_xml(requests.get(
+                        f'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode={code}',
+                        headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
+                    ).text)
                     code_new = f'{df.iat[0, 0]:06.0f}'
                     self.__code = code_new
                     self.__name = df.iat[1, 1]
-                    self.__tab = df.iloc[2:, 2:5].astype({TAG_DT_RAW:'datetime64[ns]'}).drop_duplicates(ignore_index=True).sort_values(TAG_DT_RAW, ascending=False, ignore_index=True)
-                    rows = self.__tab.index.size
-                    self.__nul = pd.DataFrame([[0., float('nan'), 0.]], index=range(rows), columns=COL_TAG[COL_HA:])
-                    self.__tab = pd.concat([self.__tab, self.__nul], axis=1)
+                    DATE = 'fld_enddate'
+                    self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE).sort_values(DATE, ascending=False, ignore_index=True)
+                    self.__tab = pd.concat([self.__tab, pd.DataFrame([[0., float('nan'), 0.]], range(self.__tab.index.size))], axis=1)
                     self.__tab.columns = COL_TAG
                 except:
                     if code_new != code:
@@ -136,29 +129,29 @@ class valTab:
             else:
                 raise ValueError(f'Unsupported asset type [{typ}].')
         elif type(data) is pd.DataFrame:
-            self.__tab = data.astype({TAG_DT: 'datetime64[ns]'}).sort_values(TAG_DT, ascending=False, ignore_index=True)
+            self.__tab = data.copy()
         elif data is not None:
             raise TypeError(f'Unsupported data type [{type(data)}].')
         self.__verify(self.__tab)
-        if txn is not None:
-            self.__txn = txn
-        if (data or txn is not None) and self.__tab.index.size > 0:
-            self.__tab.iloc[:, COL_HA:] = self.__nul
-            txnShr = self.__txn.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn.iloc[:, TXN_COL_SS].fillna(0.)
+        if txn_tab is not None:
+            self.__txn_tab = txn_tab.copy()
+        if (data or txn_tab is not None) and self.__tab.index.size > 0:
+            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., float('nan'), 0.]])
+            txnShr = self.__txn_tab.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn_tab.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
-            for i in range(self.__txn.index.size - 1, -1, -1):
-                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn.iat[i, TXN_COL_DT]]
+            for i in range(self.__txn_tab.index.size - 1, -1, -1):
+                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, TXN_COL_DT]]
                 if df.index.size == 0:
                     raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
-                    * (self.__txn.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
+                    * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0:
-                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn.iat[i, TXN_COL_HP]
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, TXN_COL_HP]
                     row_HP = df.index[-1] + 1
-                elif not self.__txn.iat[i, TXN_COL_HS]:
+                elif not self.__txn_tab.iat[i, TXN_COL_HS]:
                     row_HP = df.index[-1] + 1
         return
 
@@ -168,20 +161,20 @@ class valTab:
     def get_name(self) -> str:
         return self.__name
 
-    def table(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
-        if not (data is None and txn is None):
-            self.__update(data, txn)
-        return self.__tab
+    def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (data is None and txn_tab is None):
+            self.__update(data, txn_tab)
+        return self.__tab.copy()
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__update(val=pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
-        return self.__tab
+        self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
+        return self.__tab.copy()
 
 class valTabMod(valTab, basTabMod):
     __err_sig = Signal(tuple)
-    def __init__(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         try:
-            valTab.__init__(self, data, txn)
+            valTab.__init__(self, data, txn_tab)
             self.__tab = valTab.table(self)
             basTabMod.__init__(self, self.__tab)
         except:
@@ -222,13 +215,13 @@ class valTabMod(valTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basTabMod.data(self, index, role)
 
-    def table(self, data: str | pd.DataFrame | None = None, txn: pd.DataFrame | None = None) -> pd.DataFrame:
-        if not (data is None and txn is None):
+    def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
+        if not (data is None and txn_tab is None):
             self.error = ()
             if type(data) is pd.DataFrame:
-                self.__tab = data
+                self.__tab = data.copy()
             try:
-                self.__tab = valTab.table(self, data, txn)
+                self.__tab = valTab.table(self, data, txn_tab)
             except:
                 basTabMod.table(self, self.__tab)
                 if sys.exc_info()[1].args[0] == TXN_ERR:
@@ -237,18 +230,18 @@ class valTabMod(valTab, basTabMod):
                     self._raise(sys.exc_info()[1].args)
             else:
                 basTabMod.table(self, self.__tab)
-        return self.__tab
+        return self.__tab.copy()
     
-    def read_csv(self, file: str) -> pd.DataFrame:
+    def read_csv(self, file: str) -> pd.DataFrame | None:
         self.error = ()
         try:
             tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
         except:
-            tab = None
             self._raise(sys.exc_info()[1].args)
+            return None
         else:
             self.table(tab)
-        return tab
+        return self.__tab.copy()
 
     def get_signal(self) -> Signal:
         return self.__err_sig
@@ -257,8 +250,9 @@ class valTabMod(valTab, basTabMod):
 if __name__ == '__main__':
     app = QApplication()
     txn = txnTab()
+    val = valTabMod()
     txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    val = valTabMod('F519697', txn.table())
+    val.table('FUND_519697', txn.table())
     val.show()
     print(val.get_code())
     print(val.get_name())

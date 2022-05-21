@@ -39,7 +39,7 @@ class basTabMod(QAbstractTableModel):
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.error = ()
-        self.__tab = data
+        self.__tab = data.copy()
         if tabView:
             self.view = tabView()
         else:
@@ -150,9 +150,9 @@ class basTabMod(QAbstractTableModel):
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:
             self.beginResetModel()
-            self.__tab = data
+            self.__tab = data.copy()
             self.endResetModel()
-        return self.__tab
+        return self.__tab.copy()
 
     def select(self, row: int | None = -1, col: int | None = -1) -> None:
         auto = self.view.hasAutoScroll()
