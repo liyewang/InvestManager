@@ -22,6 +22,8 @@ TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
 TAG_NV = 'Net Value'
 TAG_HA = 'Holding Amount'
+TAG_HS = 'Holding Share'
+TAG_UP = 'Holding Unit Price'
 TAG_HP = 'Holding Price'
 TAG_TS = 'Transaction Share'
 
@@ -29,17 +31,32 @@ COL_DT = 0
 COL_UV = 1
 COL_NV = 2
 COL_HA = 3
-COL_HP = 4
-COL_TS = 5
+COL_HS = 4
+COL_UP = 5
+COL_HP = 6
+COL_TS = 7
 
 COL_TAG = [
     TAG_DT,
     TAG_UV,
     TAG_NV,
     TAG_HA,
+    TAG_HS,
+    TAG_UP,
     TAG_HP,
     TAG_TS,
 ]
+
+COL_TYP = {
+    TAG_DT:'datetime64[ns]',
+    TAG_UV:'float64',
+    TAG_NV:'float64',
+    TAG_HA:'float64',
+    TAG_HS:'float64',
+    TAG_UP:'float64',
+    TAG_HP:'float64',
+    TAG_TS:'float64',
+}
 
 TXN_ERR = 'Transaction date does not exist.'
 
@@ -47,7 +64,7 @@ class valTab:
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
-        self.__tab = pd.DataFrame(columns=COL_TAG)
+        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__txn_tab = pd.DataFrame(columns=TXN_COL_TAG)
         self.__update(data, txn_tab)
         return
@@ -119,8 +136,9 @@ class valTab:
                     self.__code = code_new
                     self.__name = df.iat[1, 1]
                     DATE = 'fld_enddate'
-                    self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE).sort_values(DATE, ascending=False, ignore_index=True)
-                    self.__tab = pd.concat([self.__tab, pd.DataFrame([[0., float('nan'), 0.]], range(self.__tab.index.size))], axis=1)
+                    self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE) \
+                        .sort_values(DATE, ascending=False, ignore_index=True)
+                    self.__tab = pd.concat([self.__tab, pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
                     self.__tab.columns = COL_TAG
                 except:
                     if code_new != code:
@@ -136,7 +154,7 @@ class valTab:
         if txn_tab is not None:
             self.__txn_tab = txn_tab.copy()
         if (data or txn_tab is not None) and self.__tab.index.size > 0:
-            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., float('nan'), 0.]])
+            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))
             txnShr = self.__txn_tab.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn_tab.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
@@ -144,12 +162,17 @@ class valTab:
                 df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, TXN_COL_DT]]
                 if df.index.size == 0:
                     raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
-                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
-                    * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
+                # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
+                #     * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UV] \
+                    * self.__txn_tab.iat[i, TXN_COL_HS]
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HS] = self.__txn_tab.iat[i, TXN_COL_HS]
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UP] = self.__txn_tab.iat[i, TXN_COL_HP]
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0:
-                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, TXN_COL_HP]
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] \
+                        - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, TXN_COL_HP]
                     row_HP = df.index[-1] + 1
                 elif not self.__txn_tab.iat[i, TXN_COL_HS]:
                     row_HP = df.index[-1] + 1
@@ -167,7 +190,7 @@ class valTab:
         return self.__tab.copy()
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__update(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
+        self.__update(pd.read_csv(file).astype(COL_TYP))
         return self.__tab.copy()
 
 class valTabMod(valTab, basTabMod):
@@ -184,6 +207,8 @@ class valTabMod(valTab, basTabMod):
                 self.__err_sig.emit(sys.exc_info()[1].args)
             else:
                 self._raise(sys.exc_info()[1].args)
+        self.view.setColumnHidden(COL_HS, True)
+        self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
         self.view.setColumnHidden(COL_TS, True)
         self.view.setMinimumWidth(500)
@@ -204,7 +229,7 @@ class valTabMod(valTab, basTabMod):
             col = index.column()
             if col == COL_DT and type(v) is pd.Timestamp:
                 return v.strftime(r'%Y/%m/%d')
-            elif col == COL_HA:
+            elif col == COL_HA or col == COL_HS or col == COL_TS:
                 return f'{v:,.2f}'
             else:
                 return f'{v:,.4f}'
@@ -235,7 +260,7 @@ class valTabMod(valTab, basTabMod):
     def read_csv(self, file: str) -> pd.DataFrame | None:
         self.error = ()
         try:
-            tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
+            tab = pd.read_csv(file).astype(COL_TYP)
         except:
             self._raise(sys.exc_info()[1].args)
             return None

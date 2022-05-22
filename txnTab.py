@@ -36,10 +36,21 @@ COL_TAG = [
     TAG_RR,
 ]
 
+COL_TYP = {
+    TAG_DT: 'datetime64[ns]',
+    TAG_BA: 'float64',
+    TAG_BS: 'float64',
+    TAG_SA: 'float64',
+    TAG_SS: 'float64',
+    TAG_HS: 'float64',
+    TAG_HP: 'float64',
+    TAG_RR: 'float64',
+}
+
 class txnTab:
     def __init__(self, data: pd.DataFrame | None = None) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG)
-        self.__avg = float('nan')
+        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.__avg = NAN
         self.config()
         if data is not None:
             self.__calcTab(data)
@@ -90,7 +101,7 @@ class txnTab:
                     raise ValueError('Numeric type is required.', rects)
                 else:
                     raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
-            v = df.iloc[:, col].isin([float('inf'), float('nan')])
+            v = df.iloc[:, col].isin([float('inf'), NAN])
             for row in v.loc[v].index:
                 rects.add((col, row, 1, 1))
             if rects:
@@ -228,7 +239,7 @@ class txnTab:
         _data.iloc[:, COL_RR] = RateMat
 
         if RateSz == 0:
-            _avg = float('nan')
+            _avg = NAN
         elif RateSz == 1:
             _avg = Rate
         elif RateSz > 1:
@@ -301,7 +312,7 @@ class txnTab:
         return self.__avg
 
     def read_csv(self, file: str) -> pd.DataFrame:
-        self.__calcTab(pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'}))
+        self.__calcTab(pd.read_csv(file).astype(COL_TYP))
         return self.__tab.copy()
 
 class txnTabMod(txnTab, basTabMod):
@@ -309,7 +320,7 @@ class txnTabMod(txnTab, basTabMod):
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         txnTab.__init__(self)
         basTabMod.__init__(self, txnTab.table(self))
-        self.__nul = pd.DataFrame(float('nan'), [0], COL_TAG).astype({TAG_DT: 'datetime64[ns]'})
+        self.__nul = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
         if data is None:
             self.__update(txnTab.table(self))
         else:
@@ -428,7 +439,7 @@ class txnTabMod(txnTab, basTabMod):
 
     def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
-            tab = pd.read_csv(file).astype({TAG_DT: 'datetime64[ns]'})
+            tab = pd.read_csv(file).astype(COL_TYP)
         except:
             self._raise(sys.exc_info()[1].args)
             return None

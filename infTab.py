@@ -19,15 +19,7 @@ from valTab import (
     COL_HA as VAL_COL_HA,
     COL_TAG as VAL_COL_TAG,
 )
-from db import (
-    db,
-    group_info,
-    group_make,
-    KEY_INF,
-    KEY_TXN,
-    KEY_VAL,
-    ASSET_GRP,
-)
+from db import *
 
 TAG_AT = 'Asset Type'
 TAG_AC = 'Asset Code'
@@ -58,13 +50,24 @@ COL_TAG = [
     TAG_AR,
 ]
 
+COL_TYP = {
+    TAG_AT:'str',
+    TAG_AC:'str',
+    TAG_AN:'str',
+    TAG_IA:'float64',
+    TAG_PA:'float64',
+    TAG_HA:'float64',
+    TAG_PR:'float64',
+    TAG_AR:'float64',
+}
+
 FORE_GOOD = 0x00bf00
 BACK_GOOD = 0xdfffdf
 COLOR_GOOD = (FORE_GOOD, BACK_GOOD)
 
 class infTab:
     def __init__(self, data: db | None = None) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype('float64')
+        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         if data is None:
             self.__db = db()
         else:
@@ -129,7 +132,7 @@ class infTab:
         typ, code = group_info(group)
         if typ not in ASSET_GRP:
             raise ValueError(f'Unsupported asset type [{typ}].')
-        df = pd.DataFrame(float('nan'), [0], COL_TAG)
+        df = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
         df.iat[0, COL_AT] = typ
         df.iat[0, COL_AC] = code
         df.iat[0, COL_AN] = name
@@ -191,16 +194,16 @@ class infTab:
                 self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
         return
 
-    def load(self, data: db) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG)
+    def load(self, data: db) -> pd.DataFrame:
+        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, s in self.__db.get(key=KEY_INF).items():
             if s.index != COL_TAG:
-                raise ValueError(f'DB error in {group}\INF\n{s}')
+                raise ValueError(f'DB error in {group}/{KEY_INF}\n{s}')
             self.__tab = pd.concat([self.__tab, pd.DataFrame([s])], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         self.update()
-        return
+        return self.__tab
 
     def get(self, group: str | None = None) -> pd.DataFrame:
         if group:
@@ -246,7 +249,7 @@ class infTabMod(infTab, basTabMod):
     def __init__(self, data: db | None = None) -> None:
         infTab.__init__(self)
         basTabMod.__init__(self, self.get(), infTabView)
-        self.__nul = pd.DataFrame([['', '', '', float('nan'), float('nan'), float('nan'), float('nan'), float('nan')]], [0], COL_TAG)
+        self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG)
         if data is None:
             self.__update(infTab.get(self))
         else:

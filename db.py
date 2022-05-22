@@ -8,14 +8,14 @@ KEY_VAL = 'VAL'
 GRP_FUND = 'FUND'
 GRP_CONF = 'CONF'
 
-VALID_GRP = (
+VALID_GRP = {
     GRP_FUND,
     GRP_CONF,
-)
+}
 
-ASSET_GRP = (
+ASSET_GRP = {
     GRP_FUND,
-)
+}
 
 GRP_SEP = '_'
 
