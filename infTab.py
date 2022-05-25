@@ -5,8 +5,8 @@ from basTab import *
 from txnTab import (
     txnTab,
     TAG_DT as TXN_TAG_DT,
-    TAG_HA as TXN_TAG_HA,
-    TAG_HS as TXN_TAG_HS,
+    TAG_SA as TXN_TAG_SA,
+    TAG_SS as TXN_TAG_SS,
     COL_BA as TXN_COL_BA,
     COL_SA as TXN_COL_SA,
     COL_HS as TXN_COL_HS,
@@ -93,9 +93,9 @@ class infTab:
             raise ValueError('Column title error.', {(sz, -1, data.columns.size - sz, 1)})
         elif sz < len(COL_TAG):
             raise ValueError('Column title error.', {(0, -1, data.columns.size, 1)})
-        rows = data.index.size
-        if rows == 0:
+        if data.empty:
             return
+        rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
@@ -147,7 +147,7 @@ class infTab:
             if txn_tab.iat[-1, TXN_COL_HS]:
                 df.iat[0, COL_AR] = txnTab(pd.concat([txn_tab, pd.DataFrame([[
                     val_tab.iat[0, VAL_COL_DT], val_tab.iat[0, VAL_COL_HA], txn_tab.iat[-1, TXN_COL_HS]
-                ]], columns=[TXN_TAG_DT, TXN_TAG_HA, TXN_TAG_HS])], ignore_index=True)).avgRate()
+                ]], columns=[TXN_TAG_DT, TXN_TAG_SA, TXN_TAG_SS])], ignore_index=True)).avgRate()
             else:
                 df.iat[0, COL_AR] = txnTab(txn_tab).avgRate()
         v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
@@ -170,7 +170,9 @@ class infTab:
             g = self.__db.get(group)
             if g:
                 txn_tab = g[KEY_TXN]
-                if txn_tab.index.size:
+                if txn_tab.empty:
+                    self.__tab.iloc[row, COL_IA:] = 0.
+                else:
                     if online:
                         val = valTab(group, txn_tab)
                         val_tab = val.table()
@@ -181,8 +183,6 @@ class infTab:
                         if not name:
                             name = g[KEY_INF].iat[COL_AN]
                     self.__set(group, name, txn_tab, val_tab)
-                else:
-                    self.__tab.iloc[row, COL_IA:] = 0.
             else:
                 if online:
                     self.__tab.iat[row, COL_AN] = valTab(group).get_name()
@@ -253,7 +253,7 @@ class infTabMod(infTab, basTabMod):
         if data is None:
             self.__update(infTab.get(self))
         else:
-            self.load(self, data)
+            self.load(data)
         self.view.setMinimumWidth(866)
         return
 

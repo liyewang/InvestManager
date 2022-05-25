@@ -4,12 +4,15 @@ from copy import deepcopy
 KEY_INF = 'INF'
 KEY_TXN = 'TXN'
 KEY_VAL = 'VAL'
+KEY_GRO = 'GRO'
 
 GRP_FUND = 'FUND'
+GRP_HOME = 'HOME'
 GRP_CONF = 'CONF'
 
 VALID_GRP = {
     GRP_FUND,
+    GRP_HOME,
     GRP_CONF,
 }
 

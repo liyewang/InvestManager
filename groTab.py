@@ -1,15 +1,21 @@
-from numpy import float64
 import pandas as pd
+import sys
 from basTab import *
 from db import *
+from txnTab import (
+    getAmtMat,
+    getAmtRes,
+    COL_DT as TXN_COL_DT,
+    COL_TAG as TXN_COL_TAG,
+    COL_TYP as TXN_COL_TYP,
+)
 from valTab import (
     COL_DT as VAL_COL_DT,
     COL_UV as VAL_COL_UV,
-    COL_NV as VAL_COL_NV,
     COL_HA as VAL_COL_HA,
     COL_HS as VAL_COL_HS,
     COL_UP as VAL_COL_UP,
-    COL_HP as VAL_COL_HP,
+    COL_TS as VAL_COL_TS,
     COL_TAG as VAL_COL_TAG,
     COL_TYP as VAL_COL_TYP,
 )
@@ -17,31 +23,27 @@ from valTab import (
 TAG_DT = 'Date'
 TAG_IA = 'Invest Amount'
 TAG_HA = 'Holding Amount'
-TAG_PR = 'Profit Rate'
 TAG_AP = 'Accumulated Profit'
 TAG_AR = 'Annualized Rate'
 
 COL_DT = 0
 COL_IA = 1
 COL_HA = 2
-COL_PR = 3
-COL_AP = 4
-COL_AR = 5
+COL_AP = 3
+COL_AR = 4
 
 COL_TAG = [
     TAG_DT,
     TAG_IA,
     TAG_HA,
-    TAG_PR,
     TAG_AP,
     TAG_AR,
 ]
 
 COL_TYP = {
     TAG_DT:'datetime64[ns]',
-    TAG_HA:'float64',
     TAG_IA:'float64',
-    TAG_PR:'float64',
+    TAG_HA:'float64',
     TAG_AP:'float64',
     TAG_AR:'float64',
 }
@@ -49,6 +51,7 @@ COL_TYP = {
 class groTab:
     def __init__(self, data: db | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.config()
         if data is None:
             self.__db = db()
         else:
@@ -58,42 +61,164 @@ class groTab:
     def __repr__(self) -> str:
         return self.__tab.to_string()
 
-    def __update(self, data: db | pd.DataFrame | None = None) -> None:
-        if type(data) is dict:
-            pass
-        elif type(data) is pd.DataFrame:
-            pass
-        return
+    def __calcRate(self, start: pd.Timestamp | None = None, end: pd.Timestamp | None = None, Rate: float = 0.) -> float:
+        dfs = []
+        AmtMats = []
+        for group, df in self.__db.get(key=KEY_TXN).items():
+            if df.index != TXN_COL_TAG:
+                raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
+            df = df.fillna(0.)
+            if start is None:
+                start = df.iat[0, TXN_COL_DT]
+            if end is None:
+                end = df.iat[-1, TXN_COL_DT]
+            if start > end:
+                raise ValueError(f'Rate period error. start: [{start}], end: [{end}]')
+            head = df.iloc[:, TXN_COL_DT] >= start
+            tail = df.iloc[:, TXN_COL_DT] <= end
+            df = df.loc[(head & tail)]
+            val_tab = self.__db.get(group, KEY_VAL)
+            v = val_tab.iloc[:, VAL_COL_DT] >= start
+            if v.any():
+                v = val_tab.loc[v].iloc[-1, :]
+                if v.iat[VAL_COL_HS]:
+                    df = pd.concat([pd.DataFrame([[
+                        v.iat[VAL_COL_DT], v.iat[VAL_COL_HA], v.iat[VAL_COL_HS], 0., 0., 0., 0., 0.
+                    ]], columns=TXN_COL_TAG), df], ignore_index=True).astype(TXN_COL_TYP)
+            v = val_tab.iloc[:, VAL_COL_DT] <= end
+            if v.any():
+                v = val_tab.loc[v].iloc[0, :]
+                if v.iat[VAL_COL_HS]:
+                    df = pd.concat([df, pd.DataFrame([[
+                        v.iat[VAL_COL_DT], 0., 0., v.iat[VAL_COL_HA], v.iat[VAL_COL_HS], 0., 0., 0.
+                    ]], columns=TXN_COL_TAG)], ignore_index=True).astype(TXN_COL_TYP)
+            if df.index.size:
+                dfs.append(df)
+                AmtMats.append(getAmtMat(df))
+        if not dfs:
+            return NAN
+        elif pd.isna(Rate):
+            Rate = 0.
+        for count in range(self.__MaxCount):
+            RatePrev = 0.
+            AmtRes = 0.
+            AmtResPrev = 0.
+            for i in len(dfs):
+                AmtRes += getAmtRes(dfs[i], AmtMats[i], Rate)
+            if abs(AmtRes) < self.__MaxAmtResErr:
+                count = 0
+                break
+            elif AmtRes == AmtResPrev or Rate == RatePrev:
+                RateNew = Rate + self.__dRate
+            else:
+                RateNew = AmtRes / (AmtResPrev - AmtRes) * (Rate - RatePrev) + Rate
+            RatePrev = Rate
+            Rate = RateNew
+            AmtResPrev = AmtRes
+        if count > 0:
+            raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
+        return Rate
 
-    def load(self, data: db) -> pd.DataFrame:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
-        self.__db = data
+    def update(self) -> None:
         val_tab = pd.DataFrame(columns=VAL_COL_TAG).astype(VAL_COL_TYP)
         for group, df in self.__db.get(key=KEY_VAL).items():
             if df.index != VAL_COL_TAG:
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
             val_tab = pd.concat([val_tab, df], ignore_index=True)
-        dates = val_tab.iloc[:, VAL_COL_DT].drop_duplicates().sort_index(ascending=False, ignore_index=True)
+        if val_tab.empty:
+            return
+        dates = val_tab.iloc[:, VAL_COL_DT].drop_duplicates().sort_values(ignore_index=True)
+        self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
+        idx = 0
+        Amt = 0
         for date in dates:
             tab = val_tab.loc[val_tab.iloc[:, VAL_COL_DT] == date]
             HoldAmt = tab.iloc[:, VAL_COL_HA].sum()
             IvstAmt = (tab.iloc[:, VAL_COL_UP] * tab.iloc[:, VAL_COL_HS]).sum()
-            Rate = HoldAmt / IvstAmt - 1
-            self.__tab = pd.concat([self.__tab, pd.DataFrame([[date, IvstAmt, HoldAmt, Rate, NAN, NAN]])], ignore_index=True)
-        return self.__tab
+            v = tab.loc[tab.iloc[:, VAL_COL_TS] < 0]
+            Amt += (v.iloc[:, VAL_COL_TS] * (v.iloc[:, VAL_COL_UV] - v.iloc[:, VAL_COL_UP])).sum()
+            AccuAmt = Amt + HoldAmt
+            if tab.iloc[:, VAL_COL_HS].sum():
+                v = self.__tab.iloc[:, COL_DT] == date
+                if v.any():
+                    Rate = self.__calcRate(end=date, Rate=self.__tab.loc[v].iat[COL_AR])
+                else:
+                    Rate = self.__calcRate(end=date)
+            self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
+            idx += 1
+        self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
+        self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
+        return
 
-    def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
-        if data:
-            self.__update(gro=data)
-        return self.__tab
+    def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
+        MaxCount = pd.to_numeric(MaxCount, errors='coerce')
+        if MaxCount <= 0:
+            raise ValueError('MaxCount must be positive')
+        self.__MaxCount = MaxCount
+        dRate = pd.to_numeric(dRate, errors='coerce')
+        if dRate <= 0 or dRate >= 1:
+            raise ValueError('dRate must be in the range of (0,1).')
+        self.__dRate = dRate
+        MaxAmtResErr = pd.to_numeric(MaxAmtResErr, errors='coerce')
+        if MaxAmtResErr <= 0:
+            raise ValueError('MaxAmtResErr must be positive.')
+        self.__MaxAmtResErr = MaxAmtResErr
+        return
 
-    def read_csv(self, file: str) -> pd.DataFrame:
-        self.__update(pd.read_csv(file))
-        return self.__tab
+    def load(self, data: db) -> pd.DataFrame:
+        self.__db = data
+        self.__tab = self.__db.get(GRP_HOME, KEY_GRO)
+        self.update()
+        return self.__tab.copy()
+
+    def table(self) -> pd.DataFrame:
+        return self.__tab.copy()
 
 class groTabMod(groTab, basTabMod):
-    def __init__(self, db: dict | None = None) -> None:
-        super().__init__(db)
+    def __init__(self, data: db | None = None) -> None:
+        groTab.__init__(self)
+        basTabMod.__init__(self, groTab.table(self))
+        if data is not None:
+            self.load(data)
+        self.view.setMinimumWidth(500)
+        return
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+    def data(self, index: QModelIndex, role: int) -> str | None:
+        if not index.isValid():
+            return None
+        if role == Qt.DisplayRole or role == Qt.EditRole:
+            v = self.__tab.iat[index.row(), index.column()]
+            if pd.isna(v):
+                return ''
+            if type(v) is str:
+                return v
+            col = index.column()
+            if col == COL_DT and type(v) is pd.Timestamp:
+                return v.strftime(r'%Y/%m/%d')
+            elif col == COL_AR:
+                return f'{v * 100:,.2f}%'
+            else:
+                return f'{v:,.2f}'
+        elif role == Qt.TextAlignmentRole:
+            if index.column() == COL_DT:
+                return int(Qt.AlignCenter)
+            else:
+                return int(Qt.AlignRight | Qt.AlignVCenter)
+        return super().data(index, role)
+
+    def load(self, data: db) -> pd.DataFrame:
+        try:
+            self.__tab = groTab.load(self, data)
+        except:
+            self._raise(sys.exc_info()[1].args)
+        basTabMod.table(self, self.__tab)
+        return self.__tab.copy()
+
+    def table(self) -> pd.DataFrame:
+        return self.__tab.copy()
 
 if __name__ == '__main__':
     app = QApplication()

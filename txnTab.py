@@ -11,10 +11,10 @@ TAG_SS = 'Selling Share'
 TAG_HS = 'Holding Share'
 TAG_HP = 'Holding Price'
 TAG_RR = 'Rate of Return'
-TAG_HA = 'Holding Amount'
-TAG_AR = 'Average Rate'
-TAG_UV = 'Unit Net Value'
-TAG_VL = 'Valuation'
+# TAG_HA = 'Holding Amount'
+# TAG_AR = 'Average Rate'
+# TAG_UV = 'Unit Net Value'
+# TAG_VL = 'Valuation'
 
 COL_DT = 0
 COL_BA = 1
@@ -47,6 +47,55 @@ COL_TYP = {
     TAG_RR: 'float64',
 }
 
+def getAmtMat(df: pd.DataFrame) -> pd.DataFrame:
+    rows = df.index.size
+    Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
+    AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype=float)
+    row_0 = 0
+    BuyShrExp = 0
+    ShrBal = 0
+    for col in range(rows):
+        ShrBal += Shr.iat[col]
+        if ShrBal < 0:
+            raise ValueError(f'Share balance cannot be negative ({ShrBal})', {(COL_SS, col, 1, 1)})
+        elif df.iat[col, COL_SS] > 0:
+            SelShrRes = df.iat[col, COL_SS]
+            for row in range(row_0, col + 1):
+                BuyShr = df.iat[row, COL_BS]
+                if BuyShr > 0:
+                    if SelShrRes > BuyShr - BuyShrExp:
+                        BuyShrExp = BuyShr - BuyShrExp
+                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * BuyShrExp / BuyShr
+                        SelShrRes -= BuyShrExp
+                        BuyShrExp = 0
+                        row_0 = row + 1
+                    elif SelShrRes == BuyShr - BuyShrExp:
+                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
+                        BuyShrExp = SelShrRes
+                        row_0 = row + 1
+                        break
+                    else:
+                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
+                        BuyShrExp += SelShrRes
+                        row_0 = row
+                        break
+    return AmtMat
+
+def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
+    if Rate < -1:
+        RateSign = -1
+    else:
+        RateSign = 1
+    AmtRes = 0.
+    for col in df.loc[df.iloc[:, COL_SS] > 0].index:
+        AmtRes += df.iat[col, COL_SA]
+        for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
+            if AmtMat.iat[row, col] != 0:
+                AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
+            elif df.iat[row, COL_BA] != 0:
+                break
+    return AmtRes
+
 class txnTab:
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
@@ -75,9 +124,9 @@ class txnTab:
             raise ValueError('Column title error.', {(sz, -1, data.columns.size - sz, 1)})
         elif sz < len(COL_TAG):
             raise ValueError('Column title error.', {(0, -1, data.columns.size, 1)})
-        rows = data.index.size
-        if rows == 0:
+        if data.empty:
             return
+        rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
@@ -150,9 +199,9 @@ class txnTab:
 
     def __calcTab(self, data: pd.DataFrame) -> None:
         self.__verify(data)
+        if data.empty:
+            return
         rows = data.index.size
-        if rows == 0:
-            return data.copy()
         _data = data.copy()
         df = data.fillna(0.)
 
@@ -175,40 +224,12 @@ class txnTab:
         _data.iloc[:, COL_HS:COL_RR] = HoldMat
         df.iloc[:, COL_HS:COL_RR] = HoldMat.fillna(0.)
 
-        AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype=float)
-        row_0 = 0
-        BuyShrExp = 0
-        ShrBal = 0
-        for col in range(rows):
-            ShrBal += Shr.iat[col]
-            if ShrBal < 0:
-                raise ValueError(f'Share balance cannot be negative ({ShrBal})', {(COL_SS, col, 1, 1)})
-            elif df.iat[col, COL_SS] > 0:
-                SelShrRes = df.iat[col, COL_SS]
-                for row in range(row_0, col + 1):
-                    BuyShr = df.iat[row, COL_BS]
-                    if BuyShr > 0:
-                        if SelShrRes > BuyShr - BuyShrExp:
-                            BuyShrExp = BuyShr - BuyShrExp
-                            AmtMat.iat[row, col] = df.iat[row, COL_BA] * BuyShrExp / BuyShr
-                            SelShrRes -= BuyShrExp
-                            BuyShrExp = 0
-                            row_0 = row + 1
-                        elif SelShrRes == BuyShr - BuyShrExp:
-                            AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
-                            BuyShrExp = SelShrRes
-                            row_0 = row + 1
-                            break
-                        else:
-                            AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
-                            BuyShrExp += SelShrRes
-                            row_0 = row
-                            break
+        AmtMat = getAmtMat(df)
 
         RateMat = pd.Series(index=range(rows), dtype=float)
         RateSz = 0
-        AmtResPrev = 0
-        RatePrev = 0
+        AmtResPrev = 0.
+        RatePrev = 0.
         for col in df.loc[df.iloc[:, COL_SS] > 0].index:
             Rate = df.iat[col, COL_RR]
             for count in range(self.__MaxCount):
@@ -225,7 +246,7 @@ class txnTab:
                 if abs(AmtRes) < self.__MaxAmtResErr:
                     count = 0
                     break
-                if AmtRes == AmtResPrev or Rate == RatePrev:
+                elif AmtRes == AmtResPrev or Rate == RatePrev:
                     RateNew = Rate + self.__dRate
                 else:
                     RateNew = AmtRes / (AmtResPrev - AmtRes) * (Rate - RatePrev) + Rate
@@ -243,29 +264,18 @@ class txnTab:
         elif RateSz == 1:
             _avg = Rate
         elif RateSz > 1:
-            AmtResPrev = 0
-            RatePrev = 0
+            AmtResPrev = 0.
+            RatePrev = 0.
             if pd.isna(self.__avg):
-                Rate = 0
+                Rate = 0.
             else:
                 Rate = self.__avg
             for count in range(self.__MaxCount):
-                if Rate < -1:
-                    RateSign = -1
-                else:
-                    RateSign = 1
-                AmtRes = 0
-                for col in df.loc[df.iloc[:, COL_SS] > 0].index:
-                    AmtRes += df.iat[col, COL_SA]
-                    for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
-                        if AmtMat.iat[row, col] != 0:
-                            AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
-                        elif df.iat[row, COL_BA] != 0:
-                            break
+                AmtRes = getAmtRes(df, AmtMat, Rate)
                 if abs(AmtRes) < self.__MaxAmtResErr:
                     count = 0
                     break
-                if AmtRes == AmtResPrev or Rate == RatePrev:
+                elif AmtRes == AmtResPrev or Rate == RatePrev:
                     RateNew = Rate + self.__dRate
                 else:
                     RateNew = AmtRes / (AmtResPrev - AmtRes) * (Rate - RatePrev) + Rate

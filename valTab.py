@@ -88,9 +88,9 @@ class valTab:
             raise ValueError('Column title error.', {(sz, -1, data.columns.size - sz, 1)})
         elif sz < len(COL_TAG):
             raise ValueError('Column title error.', {(0, -1, data.columns.size, 1)})
-        rows = data.index.size
-        if rows == 0:
+        if data.empty:
             return
+        rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
@@ -153,14 +153,14 @@ class valTab:
         self.__verify(self.__tab)
         if txn_tab is not None:
             self.__txn_tab = txn_tab.copy()
-        if (data or txn_tab is not None) and self.__tab.index.size > 0:
+        if (data or txn_tab is not None) and self.__tab.index.size:
             self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))
             txnShr = self.__txn_tab.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn_tab.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
             for i in range(self.__txn_tab.index.size - 1, -1, -1):
                 df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, TXN_COL_DT]]
-                if df.index.size == 0:
+                if df.empty:
                     raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
                 # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
                 #     * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
