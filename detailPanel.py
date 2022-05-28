@@ -13,6 +13,7 @@ from valTab import (
     COL_HP as VAL_COL_HP,
     COL_TS as VAL_COL_TS,
 )
+from db import *
 
 FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
 
@@ -224,6 +225,9 @@ if __name__ == '__main__':
     val = valTabMod()
     det = detailPanel(txn, val)
     det.show()
-    val.table('FUND_519697')
-    txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    dat = db(R'C:\Users\51730\Desktop\dat')
+    val.load(dat, 'FUND_519697')
+    txn.load(dat, 'FUND_519697')
+    # val.table('FUND_519697')
+    # txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

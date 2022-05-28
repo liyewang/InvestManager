@@ -1,4 +1,3 @@
-from matplotlib.pyplot import table
 import requests
 import pandas as pd
 import sys
@@ -13,10 +12,11 @@ from txnTab import (
     COL_HP as TXN_COL_HP,
     COL_TAG as TXN_COL_TAG,
 )
-from db import (
-    group_info,
-    GRP_FUND,
+from infTab import (
+    COL_AC as INF_COL_AC,
+    COL_AN as INF_COL_AN,
 )
+from db import *
 
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
@@ -58,7 +58,7 @@ COL_TYP = {
     TAG_TS:'float64',
 }
 
-TXN_ERR = 'Transaction date does not exist.'
+DATE_ERR = 'Transaction date does not exist.'
 
 class valTab:
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
@@ -66,6 +66,8 @@ class valTab:
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__txn_tab = pd.DataFrame(columns=TXN_COL_TAG)
+        self.__db = None
+        self.__grp = None
         self.__update(data, txn_tab)
         return
 
@@ -124,6 +126,7 @@ class valTab:
         return
 
     def __update(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
+        _tab = self.__tab.copy()
         if type(data) is str:
             typ, code = group_info(data)
             if typ == GRP_FUND:
@@ -153,7 +156,7 @@ class valTab:
         self.__verify(self.__tab)
         if txn_tab is not None:
             self.__txn_tab = txn_tab.copy()
-        if (data or txn_tab is not None) and self.__tab.index.size:
+        if not (data is None and txn_tab is None) and self.__tab.index.size:
             self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))
             txnShr = self.__txn_tab.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn_tab.iloc[:, TXN_COL_SS].fillna(0.)
             row_HS = 0
@@ -161,7 +164,7 @@ class valTab:
             for i in range(self.__txn_tab.index.size - 1, -1, -1):
                 df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, TXN_COL_DT]]
                 if df.empty:
-                    raise ValueError(TXN_ERR, {(TXN_COL_DT, i, 1, 1)})
+                    raise ValueError(DATE_ERR, {(TXN_COL_DT, i, 1, 1)})
                 # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
                 #     * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UV] \
@@ -176,6 +179,8 @@ class valTab:
                     row_HP = df.index[-1] + 1
                 elif not self.__txn_tab.iat[i, TXN_COL_HS]:
                     row_HP = df.index[-1] + 1
+        if not (self.__db is None or self.__tab.equals(_tab)):
+            self.__db.set(self.__grp, KEY_VAL, self.__tab)
         return
 
     def get_code(self) -> str:
@@ -184,13 +189,40 @@ class valTab:
     def get_name(self) -> str:
         return self.__name
 
+    def load(self, data: db, group: str, update: bool = True) -> pd.DataFrame:
+        val_tab = data.get(group, KEY_VAL)
+        txn_tab = data.get(group, KEY_TXN)
+        inf_tab = data.get(group, KEY_INF)
+        if val_tab is None:
+            raise ValueError(f'DB error. [/{group}/{KEY_VAL}] does not exist.')
+        if txn_tab is None:
+            raise ValueError(f'DB error. [/{group}/{KEY_TXN}] does not exist.')
+        if inf_tab is None:
+            raise ValueError(f'DB error. [/{group}/{KEY_INF}] does not exist.')
+        self.__db = data
+        self.__grp = group
+        if update:
+            self.__update(group, txn_tab)
+        else:
+            self.__tab = val_tab
+            self.__txn_tab = txn_tab
+            self.__code = inf_tab.iat[INF_COL_AC]
+            self.__name = inf_tab.iat[INF_COL_AN]
+            # self.__code = inf_tab.iat[1]
+            # self.__name = inf_tab.iat[2]
+        return self.__tab.copy()
+
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
         if not (data is None and txn_tab is None):
             self.__update(data, txn_tab)
         return self.__tab.copy()
 
-    def read_csv(self, file: str) -> pd.DataFrame:
-        self.__update(pd.read_csv(file).astype(COL_TYP))
+    def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
+        tab = pd.read_csv(file).astype(COL_TYP)
+        if update:
+            self.__update(tab)
+        else:
+            self.__tab = tab
         return self.__tab.copy()
 
 class valTabMod(valTab, basTabMod):
@@ -198,15 +230,14 @@ class valTabMod(valTab, basTabMod):
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         try:
             valTab.__init__(self, data, txn_tab)
-            self.__tab = valTab.table(self)
-            basTabMod.__init__(self, self.__tab)
         except:
-            self.__tab = valTab.table(self)
-            basTabMod.__init__(self, self.__tab)
-            if sys.exc_info()[1].args[0] == TXN_ERR:
+            basTabMod.__init__(self, valTab.table(self))
+            if sys.exc_info()[1].args[0] == DATE_ERR:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             else:
                 self._raise(sys.exc_info()[1].args)
+        else:
+            basTabMod.__init__(self, valTab.table(self))
         self.view.setColumnHidden(COL_HS, True)
         self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
@@ -221,7 +252,7 @@ class valTabMod(valTab, basTabMod):
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
-            v = self.__tab.iat[index.row(), index.column()]
+            v = valTab.table(self).iat[index.row(), index.column()]
             if pd.isna(v):
                 return ''
             if type(v) is str:
@@ -240,33 +271,41 @@ class valTabMod(valTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basTabMod.data(self, index, role)
 
+    def load(self, data: db, group: str) -> pd.DataFrame | None:
+        try:
+            valTab.load(self, data, group, False)
+        except:
+            self._raise(sys.exc_info()[1].args)
+            return None
+        else:
+            self.table(group)
+        return valTab.table(self)
+
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
         if not (data is None and txn_tab is None):
             self.error = ()
-            if type(data) is pd.DataFrame:
-                self.__tab = data.copy()
             try:
-                self.__tab = valTab.table(self, data, txn_tab)
+                valTab.table(self, data, txn_tab)
             except:
-                basTabMod.table(self, self.__tab)
-                if sys.exc_info()[1].args[0] == TXN_ERR:
+                basTabMod.table(self, valTab.table(self))
+                if sys.exc_info()[1].args[0] == DATE_ERR:
                     self.__err_sig.emit(sys.exc_info()[1].args)
                 else:
                     self._raise(sys.exc_info()[1].args)
             else:
-                basTabMod.table(self, self.__tab)
-        return self.__tab.copy()
+                basTabMod.table(self, valTab.table(self))
+        return valTab.table(self)
     
     def read_csv(self, file: str) -> pd.DataFrame | None:
         self.error = ()
         try:
-            tab = pd.read_csv(file).astype(COL_TYP)
+            tab = valTab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
             self.table(tab)
-        return self.__tab.copy()
+        return valTab.table(self)
 
     def get_signal(self) -> Signal:
         return self.__err_sig

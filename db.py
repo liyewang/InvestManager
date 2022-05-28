@@ -42,7 +42,7 @@ class db:
                 self.__db = {
                     group:{
                         key:hdf.get(f'{group}/{key}')
-                        for key in next(hdf.walk(f'/{group}')[2])
+                        for key in next(hdf.walk(f'/{group}'))[2]
                     }
                     for group in next(hdf.walk())[1]
                 }
@@ -55,7 +55,7 @@ class db:
     def __repr__(self) -> str:
         return self.__info
 
-    def get(self, group: str | None = None, key: str | None = None) -> dict | pd.DataFrame | pd.Series:
+    def get(self, group: str | None = None, key: str | None = None) -> dict | pd.DataFrame | pd.Series | None:
         data = {}
         if group is None and key is None:
             data = deepcopy(self.__db)
@@ -75,6 +75,8 @@ class db:
                 data = deepcopy(self.__db[group])
             elif key in self.__db[group]:
                 data = self.__db[group][key].copy()
+            else:
+                data = None
         return data
 
     def set(self, group: str, key: str, data: pd.DataFrame | pd.Series) -> None:

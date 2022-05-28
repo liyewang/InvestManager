@@ -194,7 +194,7 @@ class infTab:
                 self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
         return
 
-    def load(self, data: db) -> pd.DataFrame:
+    def load(self, data: db, update: bool = True) -> pd.DataFrame:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, s in self.__db.get(key=KEY_INF).items():
@@ -202,7 +202,8 @@ class infTab:
                 raise ValueError(f'DB error in {group}/{KEY_INF}\n{s}')
             self.__tab = pd.concat([self.__tab, pd.DataFrame([s])], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
-        self.update()
+        if update:
+            self.update()
         return self.__tab
 
     def get(self, group: str | None = None) -> pd.DataFrame:
@@ -231,11 +232,12 @@ class infTab:
         self.__db.remove(group)
         return
 
-    def read_csv(self, file: str) -> pd.DataFrame:
+    def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
         self.__tab = pd.concat(
             [self.__tab, pd.read_csv(file).iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
-        self.update()
+        if update:
+            self.update()
         return self.__tab.copy()
 
 class infTabView(QTableView):
@@ -356,13 +358,15 @@ class infTabMod(infTab, basTabMod):
         basTabMod.table(self, self.__tab)
         return
 
-    def load(self, data: db) -> None:
+    def load(self, data: db) -> pd.DataFrame | None:
         try:
-            infTab.load(self, data)
+            tab = infTab.load(self, data, False)
         except:
             self._raise(sys.exc_info()[1].args)
-        self.__update(self.get())
-        return
+            return None
+        else:
+            self.__update(tab)
+        return self.get()
 
     def table(self, view: bool | None = False) -> pd.DataFrame:
         if view:
@@ -371,7 +375,7 @@ class infTabMod(infTab, basTabMod):
 
     def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
-            tab = infTab.read_csv(self, file)
+            tab = infTab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
@@ -382,5 +386,7 @@ class infTabMod(infTab, basTabMod):
 if __name__ == '__main__':
     app = QApplication()
     inf = infTabMod()
+    dat = db(R'C:\Users\51730\Desktop\dat')
+    inf.load(dat)
     inf.show()
     app.exec()

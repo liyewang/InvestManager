@@ -130,10 +130,7 @@ class groTab:
             return
         dates = val_tab.iloc[:, VAL_COL_DT].drop_duplicates().sort_values(ignore_index=True)
         _tab = self.__tab.sort_values(TAG_DT, ignore_index=True)
-        last_date = _tab.iat[-1, COL_DT]
-        if start is None \
-            or _tab.index.size != dates.loc[dates <= last_date].size \
-            or (_tab.iloc[:, COL_DT] != dates.loc[dates <= last_date]).any():
+        if start is None or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             idx = 0
             Amt = 0
@@ -160,7 +157,8 @@ class groTab:
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
-        self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
+        if not self.__tab.equals(_tab):
+            self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
         return
 
     def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
@@ -179,8 +177,11 @@ class groTab:
         return
 
     def load(self, data: db) -> pd.DataFrame:
+        tab = data.get(GRP_HOME, KEY_GRO)
+        if tab is None:
+            raise ValueError(f'DB error. [/{GRP_HOME}/{KEY_GRO}] does not exist.')
         self.__db = data
-        self.__tab = self.__db.get(GRP_HOME, KEY_GRO)
+        self.__tab = tab
         self.update()
         return self.__tab.copy()
 
@@ -190,7 +191,7 @@ class groTab:
 class groTabMod(groTab, basTabMod):
     def __init__(self, data: db | None = None) -> None:
         groTab.__init__(self)
-        basTabMod.__init__(self, groTab.table(self))
+        basTabMod.__init__(self, self.table())
         if data is not None:
             self.load(data)
         self.view.setMinimumWidth(500)
@@ -203,7 +204,7 @@ class groTabMod(groTab, basTabMod):
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
-            v = self.__tab.iat[index.row(), index.column()]
+            v = self.table().iat[index.row(), index.column()]
             if pd.isna(v):
                 return ''
             if type(v) is str:
@@ -222,16 +223,16 @@ class groTabMod(groTab, basTabMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return super().data(index, role)
 
-    def load(self, data: db) -> pd.DataFrame:
+    def load(self, data: db) -> pd.DataFrame | None:
         try:
-            self.__tab = groTab.load(self, data)
+            groTab.load(self, data)
         except:
+            basTabMod.table(self, self.table())
             self._raise(sys.exc_info()[1].args)
-        basTabMod.table(self, self.__tab)
-        return self.__tab.copy()
-
-    def table(self) -> pd.DataFrame:
-        return self.__tab.copy()
+            return None
+        else:
+            basTabMod.table(self, self.table())
+        return self.table()
 
 if __name__ == '__main__':
     app = QApplication()
