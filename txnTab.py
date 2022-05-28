@@ -97,7 +97,7 @@ def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
                 break
     return AmtRes
 
-class txnTab:
+class Tab:
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = None
@@ -346,14 +346,14 @@ class txnTab:
             self.__tab = tab
         return self.__tab.copy()
 
-class txnTabMod(txnTab, basTabMod):
+class Mod(Tab, basTabMod):
     __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
-        txnTab.__init__(self)
-        basTabMod.__init__(self, txnTab.table(self))
+        Tab.__init__(self)
+        basTabMod.__init__(self, Tab.table(self))
         self.__nul = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
         if data is None:
-            self.__update(txnTab.table(self))
+            self.__update(Tab.table(self))
         else:
             self.__update(data)
         self.view.setMinimumWidth(866)
@@ -404,12 +404,12 @@ class txnTabMod(txnTab, basTabMod):
             return True
         return False
 
-    def __update(self, tab: pd.DataFrame | None = None, scroll: bool = True) -> None:
+    def __update(self, data: pd.DataFrame | None = None, scroll: bool = True) -> None:
         self.error = ()
         self.setColor(FORE, COLOR[LV_CRIT][FORE])
         self.setColor(BACK, COLOR[LV_CRIT][BACK])
-        if tab is not None:
-            self.__tab = tab.copy()
+        if data is not None:
+            self.__tab = data.copy()
         rows = self.__tab.index.size
         if rows:
             row = 0
@@ -424,12 +424,12 @@ class txnTabMod(txnTab, basTabMod):
                 if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
                     self.__tab = df
                     mute = False
-                elif tab is not None:
+                elif data is not None:
                     mute = False
                 else:
                     mute = True
                 try:
-                    self.__tab = txnTab.table(self, self.__tab)
+                    self.__tab = Tab.table(self, self.__tab)
                 except:
                     v = sys.exc_info()[1].args
                     if mute and len(v) >= 2 and type(v[1]) is set:
@@ -446,7 +446,7 @@ class txnTabMod(txnTab, basTabMod):
                     self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
             else:
                 try:
-                    self.__tab.iloc[:-1, :] = txnTab.table(self, self.__tab.iloc[:-1, :])
+                    self.__tab.iloc[:-1, :] = Tab.table(self, self.__tab.iloc[:-1, :])
                 except:
                     basTabMod.table(self, self.__tab)
                     self._raise(sys.exc_info()[1].args)
@@ -461,39 +461,39 @@ class txnTabMod(txnTab, basTabMod):
 
     def load(self, data: db, group: str) -> pd.DataFrame | None:
         try:
-            tab = txnTab.load(self, data, group, False)
+            tab = Tab.load(self, data, group, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
             self.__update(tab)
-        return txnTab.table(self)
+        return Tab.table(self)
 
     def table(self, data: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
         if data is not None:
             self.__update(data)
         if view:
             return self.__tab.copy()
-        return txnTab.table(self)
+        return Tab.table(self)
 
     def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
-            tab = txnTab.read_csv(self, file, False)
+            tab = Tab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
             self.__update(tab)
-        return txnTab.table(self)
+        return Tab.table(self)
 
     def get_signal(self) -> Signal:
         return self.__txn_update
 
 if __name__ == '__main__':
     app = QApplication()
-    txn = txnTabMod()
-    txn.show()
-    txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    print(txn.table())
-    print(txn.avgRate())
+    t = Mod()
+    t.show()
+    t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    print(t.table())
+    print(t.avgRate())
     app.exec()

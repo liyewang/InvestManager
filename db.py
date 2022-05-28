@@ -23,10 +23,7 @@ ASSET_GRP = {
 GRP_SEP = '_'
 
 def group_info(group: str) -> list:
-    data = group.split(GRP_SEP, 1)
-    if len(data) != 2:
-        raise ValueError(f'Group error. [{group}]')
-    return data
+    return group.split(GRP_SEP, 1)
 
 def group_make(typ: str, code: str) -> str:
     return f'{typ}{GRP_SEP}{code}'
@@ -63,9 +60,9 @@ class db:
             for k, v in self.__db.items():
                 if type(v) is dict and key in v:
                     data[k] = v[key].copy()
-        elif len(group) == 1:
+        elif group in ASSET_GRP:
             for k, v in self.__db.items():
-                if k[0] == group:
+                if group_info(k)[0] == group:
                     if key is None:
                         data[k] = deepcopy(v)
                     elif key in v:
@@ -77,6 +74,8 @@ class db:
                 data = self.__db[group][key].copy()
             else:
                 data = None
+        elif key is not None:
+            data = None
         return data
 
     def set(self, group: str, key: str, data: pd.DataFrame | pd.Series) -> None:

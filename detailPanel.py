@@ -5,15 +5,17 @@ from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
-from txnTab import txnTabMod
-from valTab import (
-    valTabMod,
-    COL_DT as VAL_COL_DT,
-    COL_NV as VAL_COL_NV,
-    COL_HP as VAL_COL_HP,
-    COL_TS as VAL_COL_TS,
-)
 from db import *
+import txnTab as txn
+# from txnTab import txn.Mod
+import valTab as val
+# from valTab import (
+#     val.Mod,
+#     COL_DT as val.COL_DT,
+#     COL_NV as val.COL_NV,
+#     COL_HP as val.COL_HP,
+#     COL_TS as val.COL_TS,
+# )
 
 FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
 
@@ -23,19 +25,19 @@ TAG_HA = 'Holding Amount'
 TAG_PR = 'Profit Rate'
 TAG_AR = 'Average Rate'
 
-class detailPanel(QMainWindow):
-    def __init__(self, txn: txnTabMod, val: valTabMod) -> None:
+class panel(QMainWindow):
+    def __init__(self, txn_mod: txn.Mod, val_mod: val.Mod) -> None:
         super().__init__()
         self.setMinimumSize(1366, 768)
-        self.__txn = txn
-        self.__val = val
-        self.__tab = self.__val.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, VAL_COL_DT]
-        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
-        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
-        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean()
-        self.__txn.get_signal().connect(self.__update)
-        self.__val.get_signal().connect(self.__txn_raise)
+        self.__txn_mod = txn_mod
+        self.__val_mod = val_mod
+        self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
+        self.__date = self.__tab.iloc[:, val.COL_DT]
+        self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
+        self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
+        self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
+        self.__txn_mod.get_signal().connect(self.__update)
+        self.__val_mod.get_signal().connect(self.__txn_raise)
 
         self.__plot_start = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
         self.__plot_range = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
@@ -74,7 +76,7 @@ class detailPanel(QMainWindow):
         llayout.addLayout(self.__plot_start_layout, 1)
         llayout.addWidget(self.__plot_range_title, 1)
         llayout.addLayout(self.__plot_range_layout, 1)
-        llayout.addWidget(self.__txn.view, 30)
+        llayout.addWidget(self.__txn_mod.view, 30)
 
         self.__stat = QLabel()
         self.__stat.setAlignment(Qt.AlignLeft)
@@ -83,14 +85,14 @@ class detailPanel(QMainWindow):
 
         rlayout = QVBoxLayout()
         rlayout.addWidget(self.__stat, 1)
-        rlayout.addWidget(self.__val.view, 9)
+        rlayout.addWidget(self.__val_mod.view, 9)
 
         self.__main = QWidget()
         self.setCentralWidget(self.__main)
         layout = QHBoxLayout(self.__main)
         layout.addLayout(llayout, 7)
         layout.addLayout(rlayout, 3)
-        # layout.addWidget(self.__val.view, 3)
+        # layout.addWidget(self.__val_mod.view, 3)
 
         return
 
@@ -150,15 +152,15 @@ class detailPanel(QMainWindow):
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
-            nv = self.__tab.iloc[head:tail, VAL_COL_NV]
-            v = self.__tab.iloc[head:tail, VAL_COL_TS] > 0
+            nv = self.__tab.iloc[head:tail, val.COL_NV]
+            v = self.__tab.iloc[head:tail, val.COL_TS] > 0
             txnBA = (
-                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
+                self.__tab.iloc[head:tail, val.COL_DT].loc[v],
                 nv.loc[v],
             )
-            v = self.__tab.iloc[head:tail, VAL_COL_TS] < 0
+            v = self.__tab.iloc[head:tail, val.COL_TS] < 0
             txnSA = (
-                self.__tab.iloc[head:tail, VAL_COL_DT].loc[v],
+                self.__tab.iloc[head:tail, val.COL_DT].loc[v],
                 nv.loc[v],
             )
             self.__ax.clear()
@@ -170,12 +172,12 @@ class detailPanel(QMainWindow):
                 date, self.__avg500[head:tail],
                 txnBA[0], txnBA[1], 'bo',
                 txnSA[0], txnSA[1], 'ro',
-                date, self.__tab.iloc[head:tail, VAL_COL_HP], 'm-.',
+                date, self.__tab.iloc[head:tail, val.COL_HP], 'm-.',
                 lw=0.5,
                 ms=3,
             )
             self.__ax.set(xlabel='Date', ylabel='Net Value')
-            self.__ax.set_title(f'{self.__val.get_name()} ({self.__val.get_code()})',
+            self.__ax.set_title(f'{self.__val_mod.get_name()} ({self.__val_mod.get_code()})',
                 fontsize=16, fontproperties=self.__font)
             self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling', 'Holding Price'])
             self.__ax.margins(x=0)
@@ -196,12 +198,12 @@ class detailPanel(QMainWindow):
 
     @Slot()
     def __update(self) -> None:
-        self.__val.table(txn_tab=self.__txn.table())
-        self.__tab = self.__val.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, VAL_COL_DT]
-        self.__avg125 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=125, min_periods=1).mean()
-        self.__avg250 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=250, min_periods=1).mean()
-        self.__avg500 = self.__tab.iloc[:, VAL_COL_NV].rolling(window=500, min_periods=1).mean()
+        self.__val_mod.table(txn_tab=self.__txn_mod.table())
+        self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
+        self.__date = self.__tab.iloc[:, val.COL_DT]
+        self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
+        self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
+        self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
         self.__plot_start_update()
         self.__plot_range_update()
         self.__plot()
@@ -210,7 +212,7 @@ class detailPanel(QMainWindow):
 
     @Slot()
     def __txn_raise(self, args: tuple) -> None:
-        self.__txn._raise(args)
+        self.__txn_mod._raise(args)
         return
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -221,13 +223,13 @@ class detailPanel(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication()
-    txn = txnTabMod()
-    val = valTabMod()
-    det = detailPanel(txn, val)
+    t = txn.Mod()
+    v = val.Mod()
+    det = panel(t, v)
     det.show()
     dat = db(R'C:\Users\51730\Desktop\dat')
-    val.load(dat, 'FUND_519697')
-    txn.load(dat, 'FUND_519697')
-    # val.table('FUND_519697')
-    # txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    v.load(dat, 'FUND_519697')
+    t.load(dat, 'FUND_519697')
+    # v.table('FUND_519697')
+    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

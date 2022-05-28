@@ -2,23 +2,25 @@ import pandas as pd
 import sys
 from basTab import *
 from db import *
-from txnTab import (
-    getAmtMat,
-    getAmtRes,
-    COL_DT as TXN_COL_DT,
-    COL_TAG as TXN_COL_TAG,
-    COL_TYP as TXN_COL_TYP,
-)
-from valTab import (
-    COL_DT as VAL_COL_DT,
-    COL_UV as VAL_COL_UV,
-    COL_HA as VAL_COL_HA,
-    COL_HS as VAL_COL_HS,
-    COL_UP as VAL_COL_UP,
-    COL_TS as VAL_COL_TS,
-    COL_TAG as VAL_COL_TAG,
-    COL_TYP as VAL_COL_TYP,
-)
+import txnTab as txn
+# from txnTab import (
+#     txn.getAmtMat,
+#     txn.getAmtRes,
+#     COL_DT as txn.COL_DT,
+#     COL_TAG as txn.COL_TAG,
+#     COL_TYP as txn.COL_TYP,
+# )
+import valTab as val
+# from valTab import (
+#     COL_DT as val.COL_DT,
+#     COL_UV as val.COL_UV,
+#     COL_HA as val.COL_HA,
+#     COL_HS as val.COL_HS,
+#     COL_UP as val.COL_UP,
+#     COL_TS as val.COL_TS,
+#     COL_TAG as val.COL_TAG,
+#     COL_TYP as val.COL_TYP,
+# )
 
 TAG_DT = 'Date'
 TAG_IA = 'Invest Amount'
@@ -48,12 +50,13 @@ COL_TYP = {
     TAG_AR:'float64',
 }
 
-class groTab:
+class Tab:
     def __init__(self, data: db | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.config()
         if data is None:
             self.__db = db()
+            self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
         else:
             self.load(data)
         return
@@ -65,36 +68,36 @@ class groTab:
         dfs = []
         AmtMats = []
         for group, df in self.__db.get(key=KEY_TXN).items():
-            if df.index != TXN_COL_TAG:
+            if (df.columns != txn.COL_TAG).any():
                 raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
             df = df.fillna(0.)
             if start is None:
-                start = df.iat[0, TXN_COL_DT]
+                start = df.iat[0, txn.COL_DT]
             if end is None:
-                end = df.iat[-1, TXN_COL_DT]
+                end = df.iat[-1, txn.COL_DT]
             if start > end:
                 raise ValueError(f'Rate period error. start: [{start}], end: [{end}]')
-            head = df.iloc[:, TXN_COL_DT] >= start
-            tail = df.iloc[:, TXN_COL_DT] <= end
+            head = df.iloc[:, txn.COL_DT] >= start
+            tail = df.iloc[:, txn.COL_DT] <= end
             df = df.loc[(head & tail)]
             val_tab = self.__db.get(group, KEY_VAL)
-            v = val_tab.iloc[:, VAL_COL_DT] >= start
+            v = val_tab.iloc[:, val.COL_DT] >= start
             if v.any():
                 v = val_tab.loc[v].iloc[-1, :]
-                if v.iat[VAL_COL_HS]:
+                if v.iat[val.COL_HS]:
                     df = pd.concat([pd.DataFrame([[
-                        v.iat[VAL_COL_DT], v.iat[VAL_COL_HA], v.iat[VAL_COL_HS], 0., 0., 0., 0., 0.
-                    ]], columns=TXN_COL_TAG), df], ignore_index=True).astype(TXN_COL_TYP)
-            v = val_tab.iloc[:, VAL_COL_DT] <= end
+                        v.iat[val.COL_DT], v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0., 0., 0.
+                    ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
+            v = val_tab.iloc[:, val.COL_DT] <= end
             if v.any():
                 v = val_tab.loc[v].iloc[0, :]
-                if v.iat[VAL_COL_HS]:
+                if v.iat[val.COL_HS]:
                     df = pd.concat([df, pd.DataFrame([[
-                        v.iat[VAL_COL_DT], 0., 0., v.iat[VAL_COL_HA], v.iat[VAL_COL_HS], 0., 0., 0.
-                    ]], columns=TXN_COL_TAG)], ignore_index=True).astype(TXN_COL_TYP)
+                        v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0.
+                    ]], columns=txn.COL_TAG)], ignore_index=True).astype(txn.COL_TYP)
             if df.index.size:
                 dfs.append(df)
-                AmtMats.append(getAmtMat(df))
+                AmtMats.append(txn.getAmtMat(df))
         if not dfs:
             return NAN
         elif pd.isna(Rate):
@@ -103,8 +106,8 @@ class groTab:
             RatePrev = 0.
             AmtRes = 0.
             AmtResPrev = 0.
-            for i in len(dfs):
-                AmtRes += getAmtRes(dfs[i], AmtMats[i], Rate)
+            for i in range(len(dfs)):
+                AmtRes += txn.getAmtRes(dfs[i], AmtMats[i], Rate)
             if abs(AmtRes) < self.__MaxAmtResErr:
                 count = 0
                 break
@@ -120,40 +123,43 @@ class groTab:
         return Rate
 
     def update(self, start: pd.Timestamp | None = None) -> None:
-        val_tab = pd.DataFrame(columns=VAL_COL_TAG).astype(VAL_COL_TYP)
+        val_tab = pd.DataFrame(columns=val.COL_TAG).astype(val.COL_TYP)
         for group, df in self.__db.get(key=KEY_VAL).items():
-            if df.index != VAL_COL_TAG:
+            if (df.columns != val.COL_TAG).any():
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
             val_tab = pd.concat([val_tab, df], ignore_index=True)
         if val_tab.empty:
             self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
             return
-        dates = val_tab.iloc[:, VAL_COL_DT].drop_duplicates().sort_values(ignore_index=True)
+        dates = val_tab.iloc[:, val.COL_DT].drop_duplicates().sort_values(ignore_index=True)
         _tab = self.__tab.sort_values(TAG_DT, ignore_index=True)
-        if start is None or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
+        if start is None or _tab.iloc[0, COL_DT] >= start or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             idx = 0
             Amt = 0
+            Rate = NAN
         else:
             dates = dates.loc[dates >= start]
             _tab = _tab.loc[_tab.iloc[:, COL_DT] < start]
             idx = _tab.index.size
             Amt = _tab.iloc[-1, COL_AP] - _tab.iloc[-1, COL_HA] + _tab.iloc[-1, COL_IA]
+            Rate = _tab.iloc[-1, COL_AR]
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             self.__tab = pd.concat([_tab, self.__tab], ignore_index=True)
         for date in dates:
-            tab = val_tab.loc[val_tab.iloc[:, VAL_COL_DT] == date]
-            HoldAmt = tab.iloc[:, VAL_COL_HA].sum()
-            IvstAmt = (tab.iloc[:, VAL_COL_UP] * tab.iloc[:, VAL_COL_HS]).sum()
-            v = tab.loc[tab.iloc[:, VAL_COL_TS] < 0]
-            Amt += (v.iloc[:, VAL_COL_TS] * (v.iloc[:, VAL_COL_UP] - v.iloc[:, VAL_COL_UV])).sum()
+            tab = val_tab.loc[val_tab.iloc[:, val.COL_DT] == date]
+            HoldAmt = tab.iloc[:, val.COL_HA].sum()
+            IvstAmt = (tab.iloc[:, val.COL_UP] * tab.iloc[:, val.COL_HS]).sum()
+            v = tab.loc[tab.iloc[:, val.COL_TS] < 0]
+            # p = tab.loc[tab.iloc[:, val.COL_TS] > 0].iloc[:, val.COL_UP]
+            Amt += (v.iloc[:, val.COL_TS] * (v.iloc[:, val.COL_UP] - v.iloc[:, val.COL_UV])).sum()
             AccuAmt = Amt + HoldAmt - IvstAmt
-            if tab.iloc[:, VAL_COL_HS].sum():
-                v = _tab.iloc[:, COL_DT] == date
-                if v.any():
-                    Rate = self.__calcRate(end=date, Rate=_tab.loc[v].iat[COL_AR])
-                else:
-                    Rate = self.__calcRate(end=date)
+            # if tab.iloc[:, val.COL_HS].sum():
+            #     v = _tab.iloc[:, COL_DT] == date
+            #     if v.any():
+            #         Rate = self.__calcRate(end=date, Rate=_tab.loc[v].iat[COL_AR])
+            #     else:
+            #         Rate = self.__calcRate(end=date)
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
@@ -178,19 +184,20 @@ class groTab:
 
     def load(self, data: db) -> pd.DataFrame:
         tab = data.get(GRP_HOME, KEY_GRO)
-        if tab is None:
-            raise ValueError(f'DB error. [/{GRP_HOME}/{KEY_GRO}] does not exist.')
         self.__db = data
-        self.__tab = tab
-        self.update()
+        if tab is None:
+            self.update()
+        else:
+            self.__tab = tab
+            self.update()
         return self.__tab.copy()
 
     def table(self) -> pd.DataFrame:
         return self.__tab.copy()
 
-class groTabMod(groTab, basTabMod):
+class Mod(Tab, basTabMod):
     def __init__(self, data: db | None = None) -> None:
-        groTab.__init__(self)
+        Tab.__init__(self)
         basTabMod.__init__(self, self.table())
         if data is not None:
             self.load(data)
@@ -225,7 +232,7 @@ class groTabMod(groTab, basTabMod):
 
     def load(self, data: db) -> pd.DataFrame | None:
         try:
-            groTab.load(self, data)
+            Tab.load(self, data)
         except:
             basTabMod.table(self, self.table())
             self._raise(sys.exc_info()[1].args)
@@ -236,6 +243,10 @@ class groTabMod(groTab, basTabMod):
 
 if __name__ == '__main__':
     app = QApplication()
-    gro = groTabMod()
-    gro.show()
+    # g = Tab()
+    g = Mod()
+    g.show()
+    d = db(R'C:\Users\51730\Desktop\dat')
+    g.load(d)
+    print(g.table())
     app.exec()

@@ -2,24 +2,26 @@ from PySide6.QtCore import Signal, Slot
 import pandas as pd
 import sys
 from basTab import *
-from txnTab import (
-    txnTab,
-    TAG_DT as TXN_TAG_DT,
-    TAG_SA as TXN_TAG_SA,
-    TAG_SS as TXN_TAG_SS,
-    COL_BA as TXN_COL_BA,
-    COL_SA as TXN_COL_SA,
-    COL_HS as TXN_COL_HS,
-    COL_HP as TXN_COL_HP,
-    COL_TAG as TXN_COL_TAG,
-)
-from valTab import (
-    valTab,
-    COL_DT as VAL_COL_DT,
-    COL_HA as VAL_COL_HA,
-    COL_TAG as VAL_COL_TAG,
-)
 from db import *
+import txnTab as txn
+# from txnTab import (
+#     txnTab,
+#     TAG_DT as txn.TAG_DT,
+#     TAG_SA as txn.TAG_SA,
+#     TAG_SS as txn.TAG_SS,
+#     COL_BA as txn.COL_BA,
+#     COL_SA as txn.COL_SA,
+#     COL_HS as txn.COL_HS,
+#     COL_HP as txn.COL_HP,
+#     COL_TAG as txn.COL_TAG,
+# )
+import valTab as val
+# from valTab import (
+#     valTab,
+#     COL_DT as val.COL_DT,
+#     COL_HA as val.COL_HA,
+#     COL_TAG as val.COL_TAG,
+# )
 
 TAG_AT = 'Asset Type'
 TAG_AC = 'Asset Code'
@@ -65,7 +67,7 @@ FORE_GOOD = 0x00bf00
 BACK_GOOD = 0xdfffdf
 COLOR_GOOD = (FORE_GOOD, BACK_GOOD)
 
-class infTab:
+class Tab:
     def __init__(self, data: db | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         if data is None:
@@ -138,18 +140,18 @@ class infTab:
         df.iat[0, COL_AN] = name
         if txn_tab.index.size:
             for i in range(txn_tab.index.size):
-                Amt = txn_tab.iat[i, TXN_COL_HP] * txn_tab.iat[i, TXN_COL_HS]
+                Amt = txn_tab.iat[i, txn.COL_HP] * txn_tab.iat[i, txn.COL_HS]
                 if df.iat[0, COL_IA] < Amt:
                     df.iat[0, COL_IA] = Amt
-            df.iat[0, COL_PA] = val_tab.iat[0, VAL_COL_HA] + txn_tab.iloc[:, TXN_COL_SA].sum() - txn_tab.iloc[:, TXN_COL_BA].sum()
-            df.iat[0, COL_HA] = val_tab.iat[0, VAL_COL_HA]
+            df.iat[0, COL_PA] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
+            df.iat[0, COL_HA] = val_tab.iat[0, val.COL_HA]
             df.iat[0, COL_PR] = df.iat[0, COL_PA] / df.iat[0, COL_IA]
-            if txn_tab.iat[-1, TXN_COL_HS]:
-                df.iat[0, COL_AR] = txnTab(pd.concat([txn_tab, pd.DataFrame([[
-                    val_tab.iat[0, VAL_COL_DT], val_tab.iat[0, VAL_COL_HA], txn_tab.iat[-1, TXN_COL_HS]
-                ]], columns=[TXN_TAG_DT, TXN_TAG_SA, TXN_TAG_SS])], ignore_index=True)).avgRate()
+            if txn_tab.iat[-1, txn.COL_HS]:
+                df.iat[0, COL_AR] = txn.txnTab(pd.concat([txn_tab, pd.DataFrame([[
+                    val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
+                ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True)).avgRate()
             else:
-                df.iat[0, COL_AR] = txnTab(txn_tab).avgRate()
+                df.iat[0, COL_AR] = txn.txnTab(txn_tab).avgRate()
         v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
         if v.any():
             self.__tab.loc[v] = df
@@ -174,22 +176,22 @@ class infTab:
                     self.__tab.iloc[row, COL_IA:] = 0.
                 else:
                     if online:
-                        val = valTab(group, txn_tab)
+                        val = val.valTab(group, txn_tab)
                         val_tab = val.table()
                         name = val.get_name()
                     else:
-                        val_tab = valTab(g[KEY_VAL], txn_tab).table()
+                        val_tab = val.valTab(g[KEY_VAL], txn_tab).table()
                         name = self.__tab.iat[row, COL_AN]
                         if not name:
                             name = g[KEY_INF].iat[COL_AN]
                     self.__set(group, name, txn_tab, val_tab)
             else:
                 if online:
-                    self.__tab.iat[row, COL_AN] = valTab(group).get_name()
+                    self.__tab.iat[row, COL_AN] = val.valTab(group).get_name()
                 self.__tab.iloc[row, COL_IA:] = 0.
                 self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
-                self.__db.set(group, KEY_TXN, pd.DataFrame(columns=TXN_COL_TAG))
-                self.__db.set(group, KEY_VAL, pd.DataFrame(columns=VAL_COL_TAG))
+                self.__db.set(group, KEY_TXN, pd.DataFrame(columns=txn.COL_TAG))
+                self.__db.set(group, KEY_VAL, pd.DataFrame(columns=val.COL_TAG))
             if (self.__tab.iloc[row, :] != tab.iloc[row, :]).any():
                 self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
         return
@@ -240,20 +242,20 @@ class infTab:
             self.update()
         return self.__tab.copy()
 
-class infTabView(QTableView):
+class View(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.setAlternatingRowColors(True)
         return
 
-class infTabMod(infTab, basTabMod):
+class Mod(Tab, basTabMod):
     def __init__(self, data: db | None = None) -> None:
-        infTab.__init__(self)
-        basTabMod.__init__(self, self.get(), infTabView)
+        Tab.__init__(self)
+        basTabMod.__init__(self, self.get(), View)
         self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG)
         if data is None:
-            self.__update(infTab.get(self))
+            self.__update(Tab.get(self))
         else:
             self.load(data)
         self.view.setMinimumWidth(866)
@@ -298,7 +300,7 @@ class infTabMod(infTab, basTabMod):
             return True
         return False
 
-    def __update(self, tab: pd.DataFrame | None = None, idx: int | None = None) -> None:
+    def __update(self, data: pd.DataFrame | None = None, idx: int | None = None) -> None:
         self.error = ()
         self.setColor(FORE, COLOR[LV_CRIT][FORE])
         self.setColor(BACK, COLOR[LV_CRIT][BACK])
@@ -306,8 +308,8 @@ class infTabMod(infTab, basTabMod):
         self.setColor(BACK, COLOR[LV_WARN][BACK])
         self.setColor(FORE, COLOR_GOOD[FORE])
         self.setColor(BACK, COLOR_GOOD[BACK])
-        if tab is not None:
-            self.__tab = tab.copy()
+        if data is not None:
+            self.__tab = data.copy()
         rows = self.__tab.index.size
         if rows:
             if idx is None:
@@ -360,7 +362,7 @@ class infTabMod(infTab, basTabMod):
 
     def load(self, data: db) -> pd.DataFrame | None:
         try:
-            tab = infTab.load(self, data, False)
+            tab = Tab.load(self, data, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
@@ -375,7 +377,7 @@ class infTabMod(infTab, basTabMod):
 
     def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
-            tab = infTab.read_csv(self, file, False)
+            tab = Tab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
@@ -385,8 +387,8 @@ class infTabMod(infTab, basTabMod):
 
 if __name__ == '__main__':
     app = QApplication()
-    inf = infTabMod()
-    dat = db(R'C:\Users\51730\Desktop\dat')
-    inf.load(dat)
-    inf.show()
+    i = Mod()
+    d = db(R'C:\Users\51730\Desktop\dat')
+    i.load(d)
+    i.show()
     app.exec()

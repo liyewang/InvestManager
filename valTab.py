@@ -3,20 +3,22 @@ import pandas as pd
 import sys
 from PySide6.QtCore import Signal
 from basTab import *
-from txnTab import (
-    txnTab,
-    COL_DT as TXN_COL_DT,
-    COL_BS as TXN_COL_BS,
-    COL_SS as TXN_COL_SS,
-    COL_HS as TXN_COL_HS,
-    COL_HP as TXN_COL_HP,
-    COL_TAG as TXN_COL_TAG,
-)
-from infTab import (
-    COL_AC as INF_COL_AC,
-    COL_AN as INF_COL_AN,
-)
 from db import *
+import txnTab as txn
+# from txnTab import (
+#     txnTab,
+#     COL_DT as txn.COL_DT,
+#     COL_BS as txn.COL_BS,
+#     COL_SS as txn.COL_SS,
+#     COL_HS as txn.COL_HS,
+#     COL_HP as txn.COL_HP,
+#     COL_TAG as txn.COL_TAG,
+# )
+import infTab as inf
+# from infTab import (
+#     COL_AC as inf.COL_AC,
+#     COL_AN as inf.COL_AN,
+# )
 
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
@@ -60,12 +62,12 @@ COL_TYP = {
 
 DATE_ERR = 'Transaction date does not exist.'
 
-class valTab:
+class Tab:
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
-        self.__txn_tab = pd.DataFrame(columns=TXN_COL_TAG)
+        self.__txn_tab = pd.DataFrame(columns=txn.COL_TAG)
         self.__db = None
         self.__grp = None
         self.__update(data, txn_tab)
@@ -126,7 +128,7 @@ class valTab:
         return
 
     def __update(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
-        _tab = self.__tab.copy()
+        tab = self.__tab.copy()
         if type(data) is str:
             typ, code = group_info(data)
             if typ == GRP_FUND:
@@ -158,28 +160,28 @@ class valTab:
             self.__txn_tab = txn_tab.copy()
         if not (data is None and txn_tab is None) and self.__tab.index.size:
             self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))
-            txnShr = self.__txn_tab.iloc[:, TXN_COL_BS].fillna(0.) - self.__txn_tab.iloc[:, TXN_COL_SS].fillna(0.)
+            txnShr = self.__txn_tab.iloc[:, txn.COL_BS].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
             for i in range(self.__txn_tab.index.size - 1, -1, -1):
-                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, TXN_COL_DT]]
+                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
                 if df.empty:
-                    raise ValueError(DATE_ERR, {(TXN_COL_DT, i, 1, 1)})
+                    raise ValueError(DATE_ERR, {(txn.COL_DT, i, 1, 1)})
                 # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
-                #     * (self.__txn_tab.iat[i, TXN_COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
+                #     * (self.__txn_tab.iat[i, txn.COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UV] \
-                    * self.__txn_tab.iat[i, TXN_COL_HS]
-                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HS] = self.__txn_tab.iat[i, TXN_COL_HS]
-                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UP] = self.__txn_tab.iat[i, TXN_COL_HP]
+                    * self.__txn_tab.iat[i, txn.COL_HS]
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HS] = self.__txn_tab.iat[i, txn.COL_HS]
+                self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UP] = self.__txn_tab.iat[i, txn.COL_HP]
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0:
                     self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] \
-                        - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, TXN_COL_HP]
+                        - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, txn.COL_HP]
                     row_HP = df.index[-1] + 1
-                elif not self.__txn_tab.iat[i, TXN_COL_HS]:
+                elif not self.__txn_tab.iat[i, txn.COL_HS]:
                     row_HP = df.index[-1] + 1
-        if not (self.__db is None or self.__tab.equals(_tab)):
+        if not (self.__db is None or self.__tab.equals(tab)):
             self.__db.set(self.__grp, KEY_VAL, self.__tab)
         return
 
@@ -206,8 +208,8 @@ class valTab:
         else:
             self.__tab = val_tab
             self.__txn_tab = txn_tab
-            self.__code = inf_tab.iat[INF_COL_AC]
-            self.__name = inf_tab.iat[INF_COL_AN]
+            self.__code = inf_tab.iat[inf.COL_AC]
+            self.__name = inf_tab.iat[inf.COL_AN]
             # self.__code = inf_tab.iat[1]
             # self.__name = inf_tab.iat[2]
         return self.__tab.copy()
@@ -225,19 +227,19 @@ class valTab:
             self.__tab = tab
         return self.__tab.copy()
 
-class valTabMod(valTab, basTabMod):
+class Mod(Tab, basTabMod):
     __err_sig = Signal(tuple)
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         try:
-            valTab.__init__(self, data, txn_tab)
+            Tab.__init__(self, data, txn_tab)
         except:
-            basTabMod.__init__(self, valTab.table(self))
+            basTabMod.__init__(self, Tab.table(self))
             if sys.exc_info()[1].args[0] == DATE_ERR:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             else:
                 self._raise(sys.exc_info()[1].args)
         else:
-            basTabMod.__init__(self, valTab.table(self))
+            basTabMod.__init__(self, Tab.table(self))
         self.view.setColumnHidden(COL_HS, True)
         self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
@@ -252,7 +254,7 @@ class valTabMod(valTab, basTabMod):
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
-            v = valTab.table(self).iat[index.row(), index.column()]
+            v = Tab.table(self).iat[index.row(), index.column()]
             if pd.isna(v):
                 return ''
             if type(v) is str:
@@ -273,39 +275,39 @@ class valTabMod(valTab, basTabMod):
 
     def load(self, data: db, group: str) -> pd.DataFrame | None:
         try:
-            valTab.load(self, data, group, False)
+            Tab.load(self, data, group, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
             self.table(group)
-        return valTab.table(self)
+        return Tab.table(self)
 
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
         if not (data is None and txn_tab is None):
             self.error = ()
             try:
-                valTab.table(self, data, txn_tab)
+                Tab.table(self, data, txn_tab)
             except:
-                basTabMod.table(self, valTab.table(self))
+                basTabMod.table(self, Tab.table(self))
                 if sys.exc_info()[1].args[0] == DATE_ERR:
                     self.__err_sig.emit(sys.exc_info()[1].args)
                 else:
                     self._raise(sys.exc_info()[1].args)
             else:
-                basTabMod.table(self, valTab.table(self))
-        return valTab.table(self)
+                basTabMod.table(self, Tab.table(self))
+        return Tab.table(self)
     
     def read_csv(self, file: str) -> pd.DataFrame | None:
         self.error = ()
         try:
-            tab = valTab.read_csv(self, file, False)
+            tab = Tab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
             self.table(tab)
-        return valTab.table(self)
+        return Tab.table(self)
 
     def get_signal(self) -> Signal:
         return self.__err_sig
@@ -313,12 +315,12 @@ class valTabMod(valTab, basTabMod):
 
 if __name__ == '__main__':
     app = QApplication()
-    txn = txnTab()
-    val = valTabMod()
-    txn.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    val.table('FUND_519697', txn.table())
-    val.show()
-    print(val.get_code())
-    print(val.get_name())
-    print(val.table())
+    t = txn.Tab()
+    v = Mod()
+    t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    v.table('FUND_519697', t.table())
+    v.show()
+    print(v.get_code())
+    print(v.get_name())
+    print(v.table())
     app.exec()
