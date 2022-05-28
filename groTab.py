@@ -119,29 +119,42 @@ class groTab:
             raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
         return Rate
 
-    def update(self) -> None:
+    def update(self, start: pd.Timestamp | None = None) -> None:
         val_tab = pd.DataFrame(columns=VAL_COL_TAG).astype(VAL_COL_TYP)
         for group, df in self.__db.get(key=KEY_VAL).items():
             if df.index != VAL_COL_TAG:
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
             val_tab = pd.concat([val_tab, df], ignore_index=True)
         if val_tab.empty:
+            self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
             return
         dates = val_tab.iloc[:, VAL_COL_DT].drop_duplicates().sort_values(ignore_index=True)
-        self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
-        idx = 0
-        Amt = 0
+        _tab = self.__tab.sort_values(TAG_DT, ignore_index=True)
+        last_date = _tab.iat[-1, COL_DT]
+        if start is None \
+            or _tab.index.size != dates.loc[dates <= last_date].size \
+            or (_tab.iloc[:, COL_DT] != dates.loc[dates <= last_date]).any():
+            self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
+            idx = 0
+            Amt = 0
+        else:
+            dates = dates.loc[dates >= start]
+            _tab = _tab.loc[_tab.iloc[:, COL_DT] < start]
+            idx = _tab.index.size
+            Amt = _tab.iloc[-1, COL_AP] - _tab.iloc[-1, COL_HA] + _tab.iloc[-1, COL_IA]
+            self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
+            self.__tab = pd.concat([_tab, self.__tab], ignore_index=True)
         for date in dates:
             tab = val_tab.loc[val_tab.iloc[:, VAL_COL_DT] == date]
             HoldAmt = tab.iloc[:, VAL_COL_HA].sum()
             IvstAmt = (tab.iloc[:, VAL_COL_UP] * tab.iloc[:, VAL_COL_HS]).sum()
             v = tab.loc[tab.iloc[:, VAL_COL_TS] < 0]
-            Amt += (v.iloc[:, VAL_COL_TS] * (v.iloc[:, VAL_COL_UV] - v.iloc[:, VAL_COL_UP])).sum()
-            AccuAmt = Amt + HoldAmt
+            Amt += (v.iloc[:, VAL_COL_TS] * (v.iloc[:, VAL_COL_UP] - v.iloc[:, VAL_COL_UV])).sum()
+            AccuAmt = Amt + HoldAmt - IvstAmt
             if tab.iloc[:, VAL_COL_HS].sum():
-                v = self.__tab.iloc[:, COL_DT] == date
+                v = _tab.iloc[:, COL_DT] == date
                 if v.any():
-                    Rate = self.__calcRate(end=date, Rate=self.__tab.loc[v].iat[COL_AR])
+                    Rate = self.__calcRate(end=date, Rate=_tab.loc[v].iat[COL_AR])
                 else:
                     Rate = self.__calcRate(end=date)
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
