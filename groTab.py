@@ -1,32 +1,15 @@
 import pandas as pd
 import sys
-from basTab import *
 from db import *
+from basTab import *
 import txnTab as txn
-# from txnTab import (
-#     txn.getAmtMat,
-#     txn.getAmtRes,
-#     COL_DT as txn.COL_DT,
-#     COL_TAG as txn.COL_TAG,
-#     COL_TYP as txn.COL_TYP,
-# )
 import valTab as val
-# from valTab import (
-#     COL_DT as val.COL_DT,
-#     COL_UV as val.COL_UV,
-#     COL_HA as val.COL_HA,
-#     COL_HS as val.COL_HS,
-#     COL_UP as val.COL_UP,
-#     COL_TS as val.COL_TS,
-#     COL_TAG as val.COL_TAG,
-#     COL_TYP as val.COL_TYP,
-# )
 
 TAG_DT = 'Date'
 TAG_IA = 'Invest Amount'
 TAG_HA = 'Holding Amount'
-TAG_AP = 'Accumulated Profit'
-TAG_AR = 'Annualized Rate'
+TAG_AP = 'Accum. Profit'
+TAG_AR = 'Average Rate'
 
 COL_DT = 0
 COL_IA = 1

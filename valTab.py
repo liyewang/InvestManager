@@ -2,23 +2,10 @@ import requests
 import pandas as pd
 import sys
 from PySide6.QtCore import Signal
-from basTab import *
 from db import *
+from basTab import *
 import txnTab as txn
-# from txnTab import (
-#     txnTab,
-#     COL_DT as txn.COL_DT,
-#     COL_BS as txn.COL_BS,
-#     COL_SS as txn.COL_SS,
-#     COL_HS as txn.COL_HS,
-#     COL_HP as txn.COL_HP,
-#     COL_TAG as txn.COL_TAG,
-# )
 import infTab as inf
-# from infTab import (
-#     COL_AC as inf.COL_AC,
-#     COL_AN as inf.COL_AN,
-# )
 
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
@@ -208,10 +195,8 @@ class Tab:
         else:
             self.__tab = val_tab
             self.__txn_tab = txn_tab
-            self.__code = inf_tab.iat[inf.COL_AC]
-            self.__name = inf_tab.iat[inf.COL_AN]
-            # self.__code = inf_tab.iat[1]
-            # self.__name = inf_tab.iat[2]
+            self.__code = inf_tab.iat[0, inf.COL_AC]
+            self.__name = inf_tab.iat[0, inf.COL_AN]
         return self.__tab.copy()
 
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:

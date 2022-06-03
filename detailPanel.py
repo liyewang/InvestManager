@@ -7,15 +7,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
 from db import *
 import txnTab as txn
-# from txnTab import txn.Mod
 import valTab as val
-# from valTab import (
-#     val.Mod,
-#     COL_DT as val.COL_DT,
-#     COL_NV as val.COL_NV,
-#     COL_HP as val.COL_HP,
-#     COL_TS as val.COL_TS,
-# )
 
 FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
 

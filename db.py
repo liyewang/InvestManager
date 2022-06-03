@@ -29,7 +29,7 @@ def group_make(typ: str, code: str) -> str:
     return f'{typ}{GRP_SEP}{code}'
 
 class db:
-    def __init__(self, path: str | None = None, complevel: int | None = 1) -> None:
+    def __init__(self, path: str | None = None, complevel: int = 1) -> None:
         if complevel < 0 or complevel > 9:
             raise ValueError('complevel must be within the range [0 - 9].')
         self.__path = path
@@ -87,20 +87,28 @@ class db:
             self.__db[group] = {}
         self.__db[group][key] = data.copy()
         if self.__path:
-            with pd.HDFStore(self.__path, complevel=self.__complvl) as hdf:
-                hdf.put(f'{group}/{key}', self.__db[group][key])
+            # with pd.HDFStore(self.__path, 'a', self.__complvl) as hdf:
+            #     hdf.put(f'{group}/{key}', self.__db[group][key])
+            #     self.__info = hdf.info()
+            with pd.HDFStore(self.__path, 'w', self.__complvl) as hdf:
+                for group, keys in self.__db.items():
+                    for key, data in keys.items():
+                        hdf.put(f'{group}/{key}', data)
                 self.__info = hdf.info()
         return
 
-    def remove(self, group: str | None = '/') -> None:
+    def remove(self, group: str = '/') -> None:
         if group == '/':
+            if self.__path:
+                with pd.HDFStore(self.__path) as hdf:
+                    for grp in self.__db.keys():
+                        hdf.remove(grp)
+                    self.__info = hdf.info()
             self.__db.clear()
         elif group in self.__db:
+            if self.__path:
+                with pd.HDFStore(self.__path) as hdf:
+                    hdf.remove(group)
+                    self.__info = hdf.info()
             del self.__db[group]
-        else:
-            return
-        if self.__path:
-            with pd.HDFStore(self.__path) as hdf:
-                hdf.remove(group)
-                self.__info = hdf.info()
         return

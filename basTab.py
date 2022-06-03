@@ -102,19 +102,13 @@ class basTabMod(QAbstractTableModel):
             return True
         return False
 
-    def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor:
-        for color, rects in colorMap.items():
-            for rect in rects:
-                if type(rect) is QRect and rect.contains(col, row):
-                    return QColor(color)
-
     def _raise(
         self, args: tuple,
-        level: int | None = LV_CRIT,
-        prt: bool | None = True,
-        foreColor: bool | None = True,
-        backColor: bool | None = True,
-        msgBox: bool | None = True
+        level: int = LV_CRIT,
+        prt: bool = True,
+        foreColor: bool = True,
+        backColor: bool = True,
+        msgBox: bool = True
         ) -> None:
         if type(args) is not tuple or len(args) == 0:
             return
@@ -156,7 +150,7 @@ class basTabMod(QAbstractTableModel):
             self.endResetModel()
         return self.__tab.copy()
 
-    def select(self, row: int | None = -1, col: int | None = -1) -> None:
+    def select(self, row: int = -1, col: int = -1) -> None:
         auto = self.view.hasAutoScroll()
         self.view.setAutoScroll(True)
         if row >= 0 and col >= 0:
@@ -170,27 +164,97 @@ class basTabMod(QAbstractTableModel):
         self.view.setAutoScroll(auto)
         return
 
+    def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor | None:
+        for color, rects in colorMap.items():
+            for rect in rects:
+                # if type(rect) is not QRect:
+                #     continue
+                if rect.contains(col, row):
+                    return QColor(color)
+        return None
+
     def setColor(
         self,
-        item: int,
-        color: int,
-        left: int | None = 0,
-        top: int | None = 0,
-        width: int | None = 0,
-        height: int | None = 0
+        item: int | None = None,
+        color: int | None = None,
+        left: int = 0,
+        top: int = 0,
+        width: int = 0,
+        height: int = 0
         ) -> None:
-        if item == FORE:
-            colorMap = self.__ForeColor
+        if item is None:
+            colorMaps = (self.__ForeColor, self.__BackColor)
+        elif item == FORE:
+            colorMaps = (self.__ForeColor,)
         elif item == BACK:
-            colorMap = self.__BackColor
+            colorMaps = (self.__BackColor,)
+        else:
+            colorMaps = ()
         rect = QRect(left, top, width, height)
-        if rect.isValid():
-            if color in colorMap:
-                colorMap[color].add(rect)
-            else:
-                colorMap[color] = {rect}
-        elif color in colorMap:
-            colorMap[color].clear()
+        for colorMap in colorMaps:
+            if rect.isValid():
+                if color is None:
+                    for _color, rects in colorMap.items():
+                        for _rect in rects.copy():
+                            # if type(_rect) is not QRect:
+                            #     continue
+                            if _rect.intersects(rect):
+                                colorMap[_color].remove(_rect)
+                elif color in colorMap:
+                    colorMap[color].add(rect)
+                else:
+                    colorMap[color] = {rect}
+            elif color is None:
+                for _color in colorMap.keys():
+                    colorMap[_color].clear()
+            elif color in colorMap:
+                colorMap[color].clear()
+        return
+
+    def adjColor(self, x0: int = 0, y0: int = 0, x1: int = 0, y1: int = 0) -> None:
+        for colorMap in (self.__ForeColor, self.__BackColor):
+            for color, rects in colorMap.items():
+                for rect in rects:
+                    # if type(rect) is not QRect:
+                    #     continue
+                    if x0 < x1:
+                        if rect.left() >= x0:
+                            rect.translate(x1 - x0, 0)
+                        elif rect.right() > x0:
+                            rect2 = QRect(rect)
+                            rect.setRight(x0)
+                            rect2.setLeft(x0)
+                            rect2.translate(x1 - x0, 0)
+                            colorMap[color].add(rect2)
+                    elif x0 > x1:
+                        if rect.left() >= x0:
+                            rect.translate(x1 - x0, 0)
+                        elif rect.left() >= x1:
+                            rect.setLeft(x0)
+                            rect.translate(x1 - x0, 0)
+                        elif rect.right() > x0:
+                            rect.setWidth(rect.width() + x1 - x0)
+                        elif rect.right > x1:
+                            rect.setRight(x1)
+                    if y0 < y1:
+                        if rect.top() >= y0:
+                            rect.translate(0, y1 - y0)
+                        elif rect.bottom() > y0:
+                            rect2 = QRect(rect)
+                            rect.setBottom(y0)
+                            rect2.setTop(y0)
+                            rect2.translate(0, y1 - y0)
+                            colorMap[color].add(rect2)
+                    elif y0 > y1:
+                        if rect.top() >= y0:
+                            rect.translate(0, y1 - y0)
+                        elif rect.top() >= y1:
+                            rect.setTop(y0)
+                            rect.translate(0, y1 - y0)
+                        elif rect.bottom() > y0:
+                            rect.setHeight(rect.height() + y1 - x0)
+                        elif rect.bottom() > y1:
+                            rect.setBottom(y1)
         return
 
     def show(self) -> None:

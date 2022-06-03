@@ -1,44 +1,27 @@
 from PySide6.QtCore import Signal, Slot
 import pandas as pd
 import sys
-from basTab import *
 from db import *
+from basTab import *
 import txnTab as txn
-# from txnTab import (
-#     txnTab,
-#     TAG_DT as txn.TAG_DT,
-#     TAG_SA as txn.TAG_SA,
-#     TAG_SS as txn.TAG_SS,
-#     COL_BA as txn.COL_BA,
-#     COL_SA as txn.COL_SA,
-#     COL_HS as txn.COL_HS,
-#     COL_HP as txn.COL_HP,
-#     COL_TAG as txn.COL_TAG,
-# )
 import valTab as val
-# from valTab import (
-#     valTab,
-#     COL_DT as val.COL_DT,
-#     COL_HA as val.COL_HA,
-#     COL_TAG as val.COL_TAG,
-# )
 
 TAG_AT = 'Asset Type'
 TAG_AC = 'Asset Code'
 TAG_AN = 'Asset Name'
 TAG_IA = 'Invest Amount'
-TAG_PA = 'Profit Amount'
 TAG_HA = 'Holding Amount'
-TAG_PR = 'Profit Rate'
+TAG_CR = 'Current Rate'
+TAG_AP = 'Accum. Profit'
 TAG_AR = 'Average Rate'
 
 COL_AT = 0
 COL_AC = 1
 COL_AN = 2
 COL_IA = 3
-COL_PA = 4
-COL_HA = 5
-COL_PR = 6
+COL_HA = 4
+COL_CR = 5
+COL_AP = 6
 COL_AR = 7
 
 COL_TAG = [
@@ -46,9 +29,9 @@ COL_TAG = [
     TAG_AC,
     TAG_AN,
     TAG_IA,
-    TAG_PA,
     TAG_HA,
-    TAG_PR,
+    TAG_CR,
+    TAG_AP,
     TAG_AR,
 ]
 
@@ -57,9 +40,9 @@ COL_TYP = {
     TAG_AC:'str',
     TAG_AN:'str',
     TAG_IA:'float64',
-    TAG_PA:'float64',
     TAG_HA:'float64',
-    TAG_PR:'float64',
+    TAG_CR:'float64',
+    TAG_AP:'float64',
     TAG_AR:'float64',
 }
 
@@ -134,33 +117,31 @@ class Tab:
         typ, code = group_info(group)
         if typ not in ASSET_GRP:
             raise ValueError(f'Unsupported asset type [{typ}].')
-        df = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
-        df.iat[0, COL_AT] = typ
-        df.iat[0, COL_AC] = code
-        df.iat[0, COL_AN] = name
+        df = pd.DataFrame([[typ, code, name, 0., 0., NAN, 0., NAN]], [0], COL_TAG).astype(COL_TYP)
         if txn_tab.index.size:
-            for i in range(txn_tab.index.size):
-                Amt = txn_tab.iat[i, txn.COL_HP] * txn_tab.iat[i, txn.COL_HS]
-                if df.iat[0, COL_IA] < Amt:
-                    df.iat[0, COL_IA] = Amt
-            df.iat[0, COL_PA] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
+            df.iat[0, COL_IA] = val_tab.iat[0, val.COL_HS] * val_tab.iat[0, val.COL_UP]
+            if pd.isna(df.iat[0, COL_IA]):
+                df.iat[0, COL_IA] = 0.
             df.iat[0, COL_HA] = val_tab.iat[0, val.COL_HA]
-            df.iat[0, COL_PR] = df.iat[0, COL_PA] / df.iat[0, COL_IA]
+            df.iat[0, COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
             if txn_tab.iat[-1, txn.COL_HS]:
-                df.iat[0, COL_AR] = txn.txnTab(pd.concat([txn_tab, pd.DataFrame([[
+                t = txn.Tab(pd.concat([txn_tab, pd.DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
-                ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True)).avgRate()
+                ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True))
+                df.iat[0, COL_CR] = t.table().iat[-1, txn.TAG_RR]
+                df.iat[0, COL_AR] = t.avgRate()
             else:
-                df.iat[0, COL_AR] = txn.txnTab(txn_tab).avgRate()
+                df.iat[0, COL_CR] = NAN
+                df.iat[0, COL_AR] = txn.Tab(txn_tab).avgRate()
         v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
         if v.any():
-            self.__tab.loc[v] = df
+            self.__tab.iloc[v.loc[v].index, :] = df
         else:
             self.__tab = pd.concat([self.__tab, df])
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
-    def update(self, idx: int | None = None, online: bool = True) -> None:
+    def _update(self, idx: int | None = None, online: bool = True) -> None:
         if idx is None:
             _range = range(self.__tab.index.size)
         else:
@@ -172,66 +153,76 @@ class Tab:
             g = self.__db.get(group)
             if g:
                 txn_tab = g[KEY_TXN]
-                if txn_tab.empty:
-                    self.__tab.iloc[row, COL_IA:] = 0.
+                if online:
+                    v = val.Tab(group, txn_tab)
+                    val_tab = v.table()
+                    name = v.get_name()
                 else:
-                    if online:
-                        val = val.valTab(group, txn_tab)
-                        val_tab = val.table()
-                        name = val.get_name()
-                    else:
-                        val_tab = val.valTab(g[KEY_VAL], txn_tab).table()
-                        name = self.__tab.iat[row, COL_AN]
-                        if not name:
-                            name = g[KEY_INF].iat[COL_AN]
-                    self.__set(group, name, txn_tab, val_tab)
+                    val_tab = val.Tab(g[KEY_VAL], txn_tab).table()
+                    name = self.__tab.iat[row, COL_AN]
+                    if not name:
+                        name = g[KEY_INF].iat[0, COL_AN]
+                self.__set(group, name, txn_tab, val_tab)
             else:
                 if online:
-                    self.__tab.iat[row, COL_AN] = val.valTab(group).get_name()
-                self.__tab.iloc[row, COL_IA:] = 0.
-                self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
+                    self.__tab.iat[row, COL_AN] = val.Tab(group).get_name()
+                self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
+                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, :]], [0]))
                 self.__db.set(group, KEY_TXN, pd.DataFrame(columns=txn.COL_TAG))
                 self.__db.set(group, KEY_VAL, pd.DataFrame(columns=val.COL_TAG))
-            if (self.__tab.iloc[row, :] != tab.iloc[row, :]).any():
-                self.__db.set(group, KEY_INF, self.__tab.iloc[row, :])
+            if not self.__tab.iloc[row, :].equals(tab.iloc[row, :]):
+                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, :]], [0]))
         return
 
     def load(self, data: db, update: bool = True) -> pd.DataFrame:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
-        for group, s in self.__db.get(key=KEY_INF).items():
-            if s.index != COL_TAG:
-                raise ValueError(f'DB error in {group}/{KEY_INF}\n{s}')
-            self.__tab = pd.concat([self.__tab, pd.DataFrame([s])], ignore_index=True)
+        for group, df in self.__db.get(key=KEY_INF).items():
+            if (df.columns != COL_TAG).any():
+                raise ValueError(f'DB error in {group}/{KEY_INF}\n{df}')
+            self.__tab = pd.concat([self.__tab, df], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if update:
-            self.update()
-        return self.__tab
-
-    def get(self, group: str | None = None) -> pd.DataFrame:
-        if group:
-            typ, code = group_info(group)
-            v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
-            return self.__tab.loc[v]
+            self._update()
         return self.__tab.copy()
+
+    def get(self, item: int | str | None = None) -> pd.DataFrame | pd.Series:
+        if item is None:
+            data = self.__tab.copy()
+        elif type(item) is int:
+            data = self.__tab.iloc[item, :]
+        elif type(item) is str:
+            typ, code = group_info(item)
+            v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
+            data = self.__tab.loc[v]
+        else:
+            raise TypeError(f'Unsupported data type [{type(item)}].')
+        return data
 
     def add(self, group: str) -> None:
         typ, code = group_info(group)
         self.__tab = pd.concat([self.__tab, pd.DataFrame(
             [[typ, code, '']], columns=[TAG_AT,TAG_AC, TAG_AN]
         )], ignore_index=True)
-        self.update(self.__tab.index[-1])
+        self._update(self.__tab.index[-1])
         return
 
-    def remove(self, group: str | None = None) -> None:
-        if group is None:
-            row = self.__tab.index
-        else:
-            typ, code = group_info(group)
+    def remove(self, item: int | str | None = None) -> None:
+        if type(item) is int:
+            group = group_make(self.__tab.iat[item, COL_AT], self.__tab.iat[item, COL_AC])
+            self.__tab = self.__tab.drop(index=item).reset_index(drop=True)
+            self.__db.remove(group)
+        elif type(item) is str:
+            typ, code = group_info(item)
             v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
             row = self.__tab.loc[v].index
-        self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
-        self.__db.remove(group)
+            self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
+            self.__db.remove(item)
+        elif item is None:
+            self.__tab = self.__tab.drop(index=self.__tab.index).reset_index(drop=True)
+            self.__db.remove()
+        else:
+            raise TypeError(f'Unsupported data type [{type(item)}].')
         return
 
     def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
@@ -239,23 +230,25 @@ class Tab:
             [self.__tab, pd.read_csv(file).iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if update:
-            self.update()
+            self._update()
         return self.__tab.copy()
 
 class View(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.setAlternatingRowColors(True)
+        # self.setAlternatingRowColors(True)
+        # self.setSelectionBehavior(QTableView.SelectRows)
         return
 
 class Mod(Tab, basTabMod):
     def __init__(self, data: db | None = None) -> None:
         Tab.__init__(self)
-        basTabMod.__init__(self, self.get(), View)
-        self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG)
+        self.__tab = self.get()
+        basTabMod.__init__(self, self.__tab, View)
+        self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG).astype(COL_TYP)
         if data is None:
-            self.__update(Tab.get(self))
+            self.update()
         else:
             self.load(data)
         self.view.setMinimumWidth(866)
@@ -281,7 +274,7 @@ class Mod(Tab, basTabMod):
             col = index.column()
             if col <= COL_AN:
                 return str(v)
-            elif col >= COL_PR:
+            elif col == COL_CR or col == COL_AR:
                 return f'{v * 100:,.2f}%'
             else:
                 return f'{v:,.2f}'
@@ -296,46 +289,58 @@ class Mod(Tab, basTabMod):
         if index.isValid() and role == Qt.EditRole:
             row = index.row()
             self.__tab.iat[row, index.column()] = str(value)
-            self.__update(idx=row)
+            self.update(row)
             return True
         return False
 
-    def __update(self, data: pd.DataFrame | None = None, idx: int | None = None) -> None:
-        self.error = ()
-        self.setColor(FORE, COLOR[LV_CRIT][FORE])
-        self.setColor(BACK, COLOR[LV_CRIT][BACK])
-        self.setColor(FORE, COLOR[LV_WARN][FORE])
-        self.setColor(BACK, COLOR[LV_WARN][BACK])
-        self.setColor(FORE, COLOR_GOOD[FORE])
-        self.setColor(BACK, COLOR_GOOD[BACK])
-        if data is not None:
-            self.__tab = data.copy()
+    def update(self, data: int | str | None = None) -> None:
+        if type(data) is str:
+            typ, code = group_info(data)
+            if not (typ in ASSET_GRP and code):
+                self._raise(f'Group error [{data}].')
+                return
+            tab = self.get()
+            v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
+            if v.any():
+                data  = v.loc[v].index[0]
+            else:
+                return
+        elif not (type(data) is int or data is None):
+            self._raise(f'Unsupported data type [{type(data)}].')
+            return
         rows = self.__tab.index.size
+        cols = self.__tab.columns.size
         if rows:
-            if idx is None:
+            if data is None:
                 _range = range(rows - 1)
-            elif idx < rows - 1 and idx > 0:
-                _range = (idx,)
+                self.error = ()
+                self.setColor()
+            elif data < rows - 1 and data > 0:
+                _range = (data,)
+                self.setColor(None, None, 0, data, cols, 1)
             else:
                 _range = ()
             for row in _range:
                 try:
-                    self.update(row)
+                    self._update(row)
                 except:
                     try:
-                        self.update(row, False)
+                        self._update(row, False)
                     except:
                         self.__tab.iloc[:-1, :] = self.get()
                         basTabMod.table(self, self.__tab)
-                        self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, self.__tab.columns.size, 1)}))
+                        self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, cols, 1)}))
                         return
                     else:
-                        self._raise((sys.exc_info()[1].args[0], {(0, row, self.__tab.columns.size, 1)}), LV_WARN, msgBox=False)
+                        self._raise((sys.exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
                 else:
-                    self.setColor(FORE, COLOR_GOOD[FORE], 0, row, self.__tab.columns.size, 1)
-                    self.setColor(BACK, COLOR_GOOD[BACK], 0, row, self.__tab.columns.size, 1)
+                    self.setColor(FORE, COLOR_GOOD[FORE], 0, row, cols, 1)
+                    self.setColor(BACK, COLOR_GOOD[BACK], 0, row, cols, 1)
                 self.__tab.iloc[:-1, :] = self.get()
                 basTabMod.table(self, self.__tab)
+            if not (data is None or data == rows -1):
+                return
+            self.setColor(None, None, 0, rows - 1, cols, 1)
             typ = self.__tab.iat[-1, COL_AT]
             code = self.__tab.iat[-1, COL_AC]
             if typ and code:
@@ -344,10 +349,10 @@ class Mod(Tab, basTabMod):
                     self.add(group)
                 except:
                     basTabMod.table(self, self.__tab)
-                    self._raise((sys.exc_info()[1].args[0], {(0, rows - 1, self.__tab.columns.size, 1)}))
+                    self._raise((sys.exc_info()[1].args[0], {(0, rows - 1, cols, 1)}))
                 else:
-                    self.setColor(FORE, COLOR_GOOD[FORE], 0, rows - 1, self.__tab.columns.size, 1)
-                    self.setColor(BACK, COLOR_GOOD[BACK], 0, rows - 1, self.__tab.columns.size, 1)
+                    self.setColor(FORE, COLOR_GOOD[FORE], 0, rows - 1, cols, 1)
+                    self.setColor(BACK, COLOR_GOOD[BACK], 0, rows - 1, cols, 1)
                     self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
             elif typ:
                 self._raise(('Asset code is required.', {(COL_AC, rows - 1, 1, 1)}), msgBox=False)
@@ -356,39 +361,75 @@ class Mod(Tab, basTabMod):
             elif self.__tab.iat[-1, COL_AN] or not self.__tab.iloc[-1, COL_IA:].isna().all():
                 self.__tab.iloc[-1, :] = self.__nul
         else:
+            self.error = ()
+            self.setColor()
             self.__tab = self.__nul.copy()
         basTabMod.table(self, self.__tab)
         return
 
     def load(self, data: db) -> pd.DataFrame | None:
         try:
-            tab = Tab.load(self, data, False)
+            Tab.load(self, data, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
-            self.__update(tab)
+            self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+            self.update()
         return self.get()
 
-    def table(self, view: bool | None = False) -> pd.DataFrame:
+    def remove(self, data: int | str | None = None) -> None:
+        if type(data) is str:
+            typ, code = group_info(data)
+            if not (typ in ASSET_GRP and code):
+                self._raise(f'Group error [{data}].')
+                return
+            tab = self.get()
+            v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
+            if v.any():
+                data  = v.loc[v].index[0]
+            else:
+                return
+        elif not (type(data) is int or data is None):
+            self._raise(f'Unsupported data type [{type(data)}].')
+            return
+        rows = self.__tab.index.size
+        if data == rows - 1:
+            self.__tab.iloc[-1, :] = self.__nul
+        elif data > 0 and data < rows - 1:
+            try:
+                Tab.remove(self, data)
+            except:
+                self._raise(sys.exc_info()[1].args)
+            else:
+                self.__tab.iloc[:-1, :] = self.get()
+                self.__tab = self.__tab.drop(index=data).reset_index(drop=True)
+                self.adjColor(y0=data, y1=data - 1)
+        return
+
+    def table(self, view: bool = False) -> pd.DataFrame:
         if view:
             return self.__tab
         return self.get()
 
     def read_csv(self, file: str) -> pd.DataFrame | None:
         try:
-            tab = Tab.read_csv(self, file, False)
+            Tab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
         else:
-            self.__update(tab)
+            self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+            self.update()
         return self.get()
 
 if __name__ == '__main__':
     app = QApplication()
     i = Mod()
-    d = db(R'C:\Users\51730\Desktop\dat')
-    i.load(d)
     i.show()
+    # t = Tab()
+    d = db(R'C:\Users\51730\Desktop\dat')
+    # t.load(d)
+    i.load(d)
+    print(i)
     app.exec()

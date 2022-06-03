@@ -1,8 +1,8 @@
 import pandas as pd
 from PySide6.QtCore import Signal
 import sys
-from basTab import *
 from db import *
+from basTab import *
 
 TAG_DT = 'Date'
 TAG_BA = 'Buying Amount'
@@ -12,10 +12,6 @@ TAG_SS = 'Selling Share'
 TAG_HS = 'Holding Share'
 TAG_HP = 'Holding Price'
 TAG_RR = 'Rate of Return'
-# TAG_HA = 'Holding Amount'
-# TAG_AR = 'Average Rate'
-# TAG_UV = 'Unit Net Value'
-# TAG_VL = 'Valuation'
 
 COL_DT = 0
 COL_BA = 1
@@ -406,8 +402,7 @@ class Mod(Tab, basTabMod):
 
     def __update(self, data: pd.DataFrame | None = None, scroll: bool = True) -> None:
         self.error = ()
-        self.setColor(FORE, COLOR[LV_CRIT][FORE])
-        self.setColor(BACK, COLOR[LV_CRIT][BACK])
+        self.setColor()
         if data is not None:
             self.__tab = data.copy()
         rows = self.__tab.index.size
@@ -469,7 +464,7 @@ class Mod(Tab, basTabMod):
             self.__update(tab)
         return Tab.table(self)
 
-    def table(self, data: pd.DataFrame | None = None, view: bool | None = False) -> pd.DataFrame:
+    def table(self, data: pd.DataFrame | None = None, view: bool = False) -> pd.DataFrame:
         if data is not None:
             self.__update(data)
         if view:
