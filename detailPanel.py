@@ -220,8 +220,9 @@ if __name__ == '__main__':
     det = panel(t, v)
     det.show()
     dat = db(R'C:\Users\51730\Desktop\dat')
-    v.load(dat, 'FUND_519697')
-    t.load(dat, 'FUND_519697')
-    # v.table('FUND_519697')
+    group = list(dat.get(key=KEY_INF).keys())[0]
+    v.load(dat, group)
+    t.load(dat, group)
+    # v.table(group)
     # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

@@ -1,6 +1,8 @@
 import pandas as pd
 from copy import deepcopy
 
+NAN = float('nan')
+
 KEY_INF = 'INF'
 KEY_TXN = 'TXN'
 KEY_VAL = 'VAL'
@@ -22,11 +24,12 @@ ASSET_GRP = {
 
 GRP_SEP = '_'
 
-def group_info(group: str) -> list:
-    return group.split(GRP_SEP, 1)
+def group_info(group: str) -> tuple:
+    data = group.split(GRP_SEP)
+    return data[0], data[1], bytes.fromhex(data[2]).decode()
 
-def group_make(typ: str, code: str) -> str:
-    return f'{typ}{GRP_SEP}{code}'
+def group_make(typ: str, code: str, name: str = '') -> str:
+    return f'{typ}{GRP_SEP}{code}{GRP_SEP}{name.encode().hex()}'
 
 class db:
     def __init__(self, path: str | None = None, complevel: int = 1) -> None:
@@ -34,7 +37,8 @@ class db:
             raise ValueError('complevel must be within the range [0 - 9].')
         self.__path = path
         self.__complvl = complevel
-        if path:
+        self.__changed = False
+        if self.__path:
             with pd.HDFStore(path) as hdf:
                 self.__db = {
                     group:{
@@ -44,9 +48,6 @@ class db:
                     for group in next(hdf.walk())[1]
                 }
                 self.__info = hdf.info()
-        else:
-            self.__db = {}
-            self.__info = self.__db
         return
 
     def __repr__(self) -> str:
@@ -83,32 +84,47 @@ class db:
             raise ValueError(f'Unsupported group type [{type(group)}].')
         if not (type(data) is pd.DataFrame or type(data) is pd.Series):
             raise TypeError(f'Unsupported data type [{type(data)}].')
-        if group not in self.__db:
+        if data.empty:
+            return
+        if group in self.__db:
+            if not data.equals(self.__db[group]):
+                self.__db[group][key] = data.copy()
+                self.__changed = True
+        else:
             self.__db[group] = {}
-        self.__db[group][key] = data.copy()
-        if self.__path:
-            # with pd.HDFStore(self.__path, 'a', self.__complvl) as hdf:
-            #     hdf.put(f'{group}/{key}', self.__db[group][key])
-            #     self.__info = hdf.info()
+            self.__db[group][key] = data.copy()
+            self.__changed = True
+        return
+
+    def remove(self, group: str = '/') -> None:
+        if self.__db:
+            if group == '/':
+                self.__db.clear()
+            elif group in self.__db:
+                del self.__db[group]
+            self.__changed = True
+        return
+
+    def move(self, src: str, dst: str) -> None:
+        if group_info(src)[0] not in VALID_GRP:
+            raise ValueError(f'Unsupported group type [{type(src)}].')
+        if group_info(dst)[0] not in VALID_GRP:
+            raise ValueError(f'Unsupported group type [{type(dst)}].')
+        if src not in self.__db:
+            raise KeyError(f'Source group [{src}] does not exist.')
+        if dst in self.__db:
+            raise KeyError(f'Destination group [{dst}] already exists.')
+        self.__db[dst] = self.__db[src]
+        del self.__db[src]
+        self.__changed = True
+        return
+
+    def save(self) -> None:
+        if self.__path and self.__changed:
             with pd.HDFStore(self.__path, 'w', self.__complvl) as hdf:
                 for group, keys in self.__db.items():
                     for key, data in keys.items():
                         hdf.put(f'{group}/{key}', data)
                 self.__info = hdf.info()
-        return
-
-    def remove(self, group: str = '/') -> None:
-        if group == '/':
-            if self.__path:
-                with pd.HDFStore(self.__path) as hdf:
-                    for grp in self.__db.keys():
-                        hdf.remove(grp)
-                    self.__info = hdf.info()
-            self.__db.clear()
-        elif group in self.__db:
-            if self.__path:
-                with pd.HDFStore(self.__path) as hdf:
-                    hdf.remove(group)
-                    self.__info = hdf.info()
-            del self.__db[group]
+            self.__changed = False
         return

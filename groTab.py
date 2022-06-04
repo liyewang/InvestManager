@@ -51,6 +51,8 @@ class Tab:
         dfs = []
         AmtMats = []
         for group, df in self.__db.get(key=KEY_TXN).items():
+            if df is None:
+                continue
             if (df.columns != txn.COL_TAG).any():
                 raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
             df = df.fillna(0.)
@@ -64,6 +66,8 @@ class Tab:
             tail = df.iloc[:, txn.COL_DT] <= end
             df = df.loc[(head & tail)]
             val_tab = self.__db.get(group, KEY_VAL)
+            if val_tab is None:
+                continue
             v = val_tab.iloc[:, val.COL_DT] >= start
             if v.any():
                 v = val_tab.loc[v].iloc[-1, :]
@@ -108,6 +112,8 @@ class Tab:
     def update(self, start: pd.Timestamp | None = None) -> None:
         val_tab = pd.DataFrame(columns=val.COL_TAG).astype(val.COL_TYP)
         for group, df in self.__db.get(key=KEY_VAL).items():
+            if df is None:
+                continue
             if (df.columns != val.COL_TAG).any():
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
             val_tab = pd.concat([val_tab, df], ignore_index=True)
@@ -146,8 +152,8 @@ class Tab:
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
-        if not self.__tab.equals(_tab):
-            self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
+        self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
+        self.__db.save()
         return
 
     def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:

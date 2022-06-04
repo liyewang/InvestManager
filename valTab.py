@@ -1,3 +1,4 @@
+from unicodedata import name
 import requests
 import pandas as pd
 import sys
@@ -115,9 +116,10 @@ class Tab:
         return
 
     def __update(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
-        tab = self.__tab.copy()
         if type(data) is str:
-            typ, code = group_info(data)
+            if not (self.__grp is None or self.__grp == data):
+                raise ValueError('Loaded group can only be changed by load function.')
+            typ, code, name = group_info(data)
             if typ == GRP_FUND:
                 try:
                     df = pd.read_xml(requests.get(
@@ -125,6 +127,8 @@ class Tab:
                         headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
                     ).text)
                     code_new = f'{df.iat[0, 0]:06.0f}'
+                    if code_new != code:
+                        raise ValueError(f'Asset code [{code_new}] mismatches the group code [{code}].')
                     self.__code = code_new
                     self.__name = df.iat[1, 1]
                     DATE = 'fld_enddate'
@@ -133,8 +137,6 @@ class Tab:
                     self.__tab = pd.concat([self.__tab, pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
                     self.__tab.columns = COL_TAG
                 except:
-                    if code_new != code:
-                        raise ValueError(f'Asset code [{code_new}] mismatches the group code [{code}].')
                     raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
             else:
                 raise ValueError(f'Unsupported asset type [{typ}].')
@@ -168,8 +170,11 @@ class Tab:
                     row_HP = df.index[-1] + 1
                 elif not self.__txn_tab.iat[i, txn.COL_HS]:
                     row_HP = df.index[-1] + 1
-        if not (self.__db is None or self.__tab.equals(tab)):
+        if self.__db is not None:
             self.__db.set(self.__grp, KEY_VAL, self.__tab)
+            if type(data) is str and self.__name != name:
+                self.__db.move(self.__grp, group_make(typ, code, self.__name))
+            self.__db.save()
         return
 
     def get_code(self) -> str:
@@ -181,13 +186,10 @@ class Tab:
     def load(self, data: db, group: str, update: bool = True) -> pd.DataFrame:
         val_tab = data.get(group, KEY_VAL)
         txn_tab = data.get(group, KEY_TXN)
-        inf_tab = data.get(group, KEY_INF)
         if val_tab is None:
-            raise ValueError(f'DB error. [/{group}/{KEY_VAL}] does not exist.')
+            val_tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         if txn_tab is None:
-            raise ValueError(f'DB error. [/{group}/{KEY_TXN}] does not exist.')
-        if inf_tab is None:
-            raise ValueError(f'DB error. [/{group}/{KEY_INF}] does not exist.')
+            txn_tab = pd.DataFrame(columns=txn.COL_TAG).astype(txn.COL_TYP)
         self.__db = data
         self.__grp = group
         if update:
@@ -195,8 +197,7 @@ class Tab:
         else:
             self.__tab = val_tab
             self.__txn_tab = txn_tab
-            self.__code = inf_tab.iat[0, inf.COL_AC]
-            self.__name = inf_tab.iat[0, inf.COL_AN]
+            self.__code, self.__name = group_info(group)[1:]
         return self.__tab.copy()
 
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:

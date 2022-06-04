@@ -24,8 +24,6 @@ COLOR = (COLOR_CRIT, COLOR_WARN, COLOR_INFO)
 MSG_BOX = (QMessageBox.critical, QMessageBox.warning, QMessageBox.information)
 MSG_TAG = ('CRITICAL', 'WARNING', 'INFORMATION')
 
-NAN = float('nan')
-
 class basTabView(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
@@ -270,7 +268,7 @@ if __name__ == '__main__':
     dt = pd.to_datetime('2022-04-10', format=r'%Y/%m/%d')
     # dt = pd.DatetimeIndex(['2022-04-11'])
     # dt = pd.to_datetime('2022-04-10asd', errors='coerce')
-    df = pd.DataFrame(data={'Date':dt,'A':[4,3,2,NAN],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])
+    df = pd.DataFrame(data={'Date':dt,'A':[4,3,2,1],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
     

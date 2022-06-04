@@ -113,33 +113,27 @@ class Tab:
             raise ValueError('No duplicated asset is allowed.', rects)
         return
 
-    def __set(self, group: str, name: str, txn_tab: pd.DataFrame, val_tab: pd.DataFrame) -> None:
-        typ, code = group_info(group)
+    def __calc(self, group: str, txn_tab: pd.DataFrame | None = None, val_tab: pd.DataFrame | None = None) -> pd.Series:
+        typ, code, name = group_info(group)
         if typ not in ASSET_GRP:
             raise ValueError(f'Unsupported asset type [{typ}].')
-        df = pd.DataFrame([[typ, code, name, 0., 0., NAN, 0., NAN]], [0], COL_TAG).astype(COL_TYP)
-        if txn_tab.index.size:
-            df.iat[0, COL_IA] = val_tab.iat[0, val.COL_HS] * val_tab.iat[0, val.COL_UP]
-            if pd.isna(df.iat[0, COL_IA]):
-                df.iat[0, COL_IA] = 0.
-            df.iat[0, COL_HA] = val_tab.iat[0, val.COL_HA]
-            df.iat[0, COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
+        s = pd.Series([typ, code, name, 0., 0., NAN, 0., NAN], COL_TAG)
+        if not (txn_tab is None or val_tab is None or txn_tab.empty):
+            s.iat[COL_IA] = val_tab.iat[0, val.COL_HS] * val_tab.iat[0, val.COL_UP]
+            if pd.isna(s.iat[COL_IA]):
+                s.iat[COL_IA] = 0.
+            s.iat[COL_HA] = val_tab.iat[0, val.COL_HA]
+            s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
             if txn_tab.iat[-1, txn.COL_HS]:
                 t = txn.Tab(pd.concat([txn_tab, pd.DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
                 ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True))
-                df.iat[0, COL_CR] = t.table().iat[-1, txn.TAG_RR]
-                df.iat[0, COL_AR] = t.avgRate()
+                s.iat[COL_CR] = t.table().iat[-1, txn.TAG_RR]
+                s.iat[COL_AR] = t.avgRate()
             else:
-                df.iat[0, COL_CR] = NAN
-                df.iat[0, COL_AR] = txn.Tab(txn_tab).avgRate()
-        v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
-        if v.any():
-            self.__tab.iloc[v.loc[v].index, :] = df
-        else:
-            self.__tab = pd.concat([self.__tab, df])
-        self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
-        return
+                s.iat[COL_CR] = NAN
+                s.iat[COL_AR] = txn.Tab(txn_tab).avgRate()
+        return s
 
     def _update(self, idx: int | None = None, online: bool = True) -> None:
         if idx is None:
@@ -147,39 +141,39 @@ class Tab:
         else:
             _range = (idx,)
         self.__verify(self.__tab)
-        tab = self.__tab.copy()
         for row in _range:
-            group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC])
+            group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
             g = self.__db.get(group)
             if g:
-                txn_tab = g[KEY_TXN]
+                txn_tab = g.get(KEY_TXN, None)
                 if online:
                     v = val.Tab(group, txn_tab)
                     val_tab = v.table()
-                    name = v.get_name()
+                    _group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], v.get_name())
+                    if group != _group:
+                        self.__db.move(group, _group)
+                        group = _group
                 else:
-                    val_tab = val.Tab(g[KEY_VAL], txn_tab).table()
-                    name = self.__tab.iat[row, COL_AN]
-                    if not name:
-                        name = g[KEY_INF].iat[0, COL_AN]
-                self.__set(group, name, txn_tab, val_tab)
+                    val_tab = val.Tab(g.get(KEY_VAL, None), txn_tab).table()
+                self.__tab.iloc[row, :] = self.__calc(group, txn_tab, val_tab)
+                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
                     self.__tab.iat[row, COL_AN] = val.Tab(group).get_name()
+                    group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
-                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, :]], [0]))
-                self.__db.set(group, KEY_TXN, pd.DataFrame(columns=txn.COL_TAG))
-                self.__db.set(group, KEY_VAL, pd.DataFrame(columns=val.COL_TAG))
-            if not self.__tab.iloc[row, :].equals(tab.iloc[row, :]):
-                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, :]], [0]))
+                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
+        self.__db.save()
+        self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
     def load(self, data: db, update: bool = True) -> pd.DataFrame:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, df in self.__db.get(key=KEY_INF).items():
-            if (df.columns != COL_TAG).any():
+            if (df.columns != COL_TAG[COL_IA:]).any():
                 raise ValueError(f'DB error in {group}/{KEY_INF}\n{df}')
+            df = pd.concat([pd.DataFrame([group_info(group)], [0], [TAG_AT, TAG_AC, TAG_AN]), df], axis=1)
             self.__tab = pd.concat([self.__tab, df], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if update:
@@ -192,7 +186,7 @@ class Tab:
         elif type(item) is int:
             data = self.__tab.iloc[item, :]
         elif type(item) is str:
-            typ, code = group_info(item)
+            typ, code = group_info(item)[:2]
             v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
             data = self.__tab.loc[v]
         else:
@@ -200,20 +194,20 @@ class Tab:
         return data
 
     def add(self, group: str) -> None:
-        typ, code = group_info(group)
+        typ, code = group_info(group)[:2]
         self.__tab = pd.concat([self.__tab, pd.DataFrame(
-            [[typ, code, '']], columns=[TAG_AT,TAG_AC, TAG_AN]
+            [[typ, code, '']], columns=[TAG_AT, TAG_AC, TAG_AN]
         )], ignore_index=True)
         self._update(self.__tab.index[-1])
         return
 
     def remove(self, item: int | str | None = None) -> None:
         if type(item) is int:
-            group = group_make(self.__tab.iat[item, COL_AT], self.__tab.iat[item, COL_AC])
+            group = group_make(self.__tab.iat[item, COL_AT], self.__tab.iat[item, COL_AC], self.__tab.iat[item, COL_AN])
             self.__tab = self.__tab.drop(index=item).reset_index(drop=True)
             self.__db.remove(group)
         elif type(item) is str:
-            typ, code = group_info(item)
+            typ, code = group_info(item)[:2]
             v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
             row = self.__tab.loc[v].index
             self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
@@ -295,7 +289,7 @@ class Mod(Tab, basTabMod):
 
     def update(self, data: int | str | None = None) -> None:
         if type(data) is str:
-            typ, code = group_info(data)
+            typ, code = group_info(data)[:2]
             if not (typ in ASSET_GRP and code):
                 self._raise(f'Group error [{data}].')
                 return
@@ -380,7 +374,7 @@ class Mod(Tab, basTabMod):
 
     def remove(self, data: int | str | None = None) -> None:
         if type(data) is str:
-            typ, code = group_info(data)
+            typ, code = group_info(data)[:2]
             if not (typ in ASSET_GRP and code):
                 self._raise(f'Group error [{data}].')
                 return
@@ -430,6 +424,7 @@ if __name__ == '__main__':
     # t = Tab()
     d = db(R'C:\Users\51730\Desktop\dat')
     # t.load(d)
+    # print(t)
     i.load(d)
     print(i)
     app.exec()

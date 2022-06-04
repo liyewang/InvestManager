@@ -284,8 +284,9 @@ class Tab:
             if count > 0:
                 raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
             _avg = Rate
-        if not (self.__db is None or self.__tab.equals(_data)):
+        if self.__db is not None:
             self.__db.set(self.__grp, KEY_TXN, _data)
+            self.__db.save()
         self.__tab = _data
         self.__avg = _avg
         return
@@ -315,7 +316,7 @@ class Tab:
     def load(self, data: db, group: str, update: bool = True) -> pd.DataFrame:
         tab = data.get(group, KEY_TXN)
         if tab is None:
-            raise ValueError(f'DB error. [/{group}/{KEY_TXN}] does not exist.')
+            tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         self.__grp = group
         if update:
