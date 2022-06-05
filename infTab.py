@@ -1,8 +1,11 @@
 from PySide6.QtCore import Signal, Slot
+from PySide6.QtWidgets import QMenu
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QAction
 import pandas as pd
 import sys
 from db import *
 from basTab import *
+import detailPanel as det
 import txnTab as txn
 import valTab as val
 
@@ -128,14 +131,14 @@ class Tab:
                 t = txn.Tab(pd.concat([txn_tab, pd.DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
                 ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True))
-                s.iat[COL_CR] = t.table().iat[-1, txn.TAG_RR]
+                s.iat[COL_CR] = t.table().iat[-1, txn.COL_RR]
                 s.iat[COL_AR] = t.avgRate()
             else:
                 s.iat[COL_CR] = NAN
                 s.iat[COL_AR] = txn.Tab(txn_tab).avgRate()
         return s
 
-    def _update(self, idx: int | None = None, online: bool = True) -> None:
+    def _update(self, idx: int | None = None, online: bool = True, save: bool = True) -> None:
         if idx is None:
             _range = range(self.__tab.index.size)
         else:
@@ -163,7 +166,8 @@ class Tab:
                     group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
-        self.__db.save()
+        if save:
+            self.__db.save()
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
@@ -179,6 +183,10 @@ class Tab:
         if update:
             self._update()
         return self.__tab.copy()
+
+    def save(self) -> None:
+        self.__db.save()
+        return
 
     def get(self, item: int | str | None = None) -> pd.DataFrame | pd.Series:
         if item is None:
@@ -217,6 +225,7 @@ class Tab:
             self.__db.remove()
         else:
             raise TypeError(f'Unsupported data type [{type(item)}].')
+        self.__db.save()
         return
 
     def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
@@ -232,10 +241,77 @@ class View(QTableView):
         QTableView.__init__(self, parent)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         # self.setAlternatingRowColors(True)
-        # self.setSelectionBehavior(QTableView.SelectRows)
+        self.setSelectionBehavior(QTableView.SelectRows)
+        self.setContextMenuPolicy(Qt.DefaultContextMenu)
+        # self.setContextMenuPolicy(Qt.ActionsContextMenu)
+        # self.setContextMenuPolicy(Qt.CustomContextMenu)
+        # action = QAction('test2', self)
+        # action.triggered.connect(self.test)
+        # self.addAction(action)
+        # self.customContextMenuRequested.connect(self.test)
+        # header = self.horizontalHeader()
+        # header.setContextMenuPolicy(Qt.CustomContextMenu)
+        # header.addAction(action)
+        # header.customContextMenuRequested.connect(self.test)
+        self.__func_del = None
+        self.__func_upd = None
+        self.__func_ass = None
+        return
+
+    # def test(self, pos):
+    #     menu = QMenu(self)
+    #     act_del = menu.addAction('test2')
+    #     action = menu.exec(self.mapToGlobal(pos))
+    #     if action == act_del:
+    #         print('test2')
+    #         print(pos)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        idx = self.indexAt(event.pos())
+        flags = idx.flags()
+        if flags == Qt.NoItemFlags:
+            return
+        menu = QMenu(self)
+        en_upd = not flags & Qt.ItemIsEditable
+        if en_upd:
+            act_upd = menu.addAction('Update')
+        act_del = menu.addAction('Delete')
+        action = menu.exec(event.globalPos())
+        if action == act_del:
+            print('Delete')
+            print(idx.row())
+            if self.__func_del:
+                self.__func_del(idx.row())
+        elif en_upd and action == act_upd:
+            print('Update')
+            print(idx.row())
+            if self.__func_upd:
+                self.__func_upd(idx.row())
+        return super().contextMenuEvent(event)
+
+    def setDelete(self, func) -> None:
+        self.__func_del = func
+        return
+
+    def setUpdate(self, func) -> None:
+        self.__func_upd = func
+        return
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        idx = self.indexAt(event.position().toPoint())
+        flags = idx.flags()
+        if flags == Qt.ItemIsEnabled | Qt.ItemIsSelectable:
+            print(f'Goto {idx.row()}')
+            if self.__func_ass:
+                self.__func_ass(idx.row())
+        return super().mouseDoubleClickEvent(event)
+
+    def setOpen(self, func) -> None:
+        self.__func_ass = func
         return
 
 class Mod(Tab, basTabMod):
+    __asset_open = Signal(QWidget)
     def __init__(self, data: db | None = None) -> None:
         Tab.__init__(self)
         self.__tab = self.get()
@@ -246,6 +322,9 @@ class Mod(Tab, basTabMod):
         else:
             self.load(data)
         self.view.setMinimumWidth(866)
+        self.view.setDelete(self.remove)
+        self.view.setUpdate(self.update)
+        self.view.setOpen(self.open)
         return
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
@@ -316,10 +395,10 @@ class Mod(Tab, basTabMod):
                 _range = ()
             for row in _range:
                 try:
-                    self._update(row)
+                    self._update(row, True, False)
                 except:
                     try:
-                        self._update(row, False)
+                        self._update(row, False, False)
                     except:
                         self.__tab.iloc[:-1, :] = self.get()
                         basTabMod.table(self, self.__tab)
@@ -353,12 +432,13 @@ class Mod(Tab, basTabMod):
             elif code:
                 self._raise(('Asset type is invalid.', {(COL_AT, rows - 1, 1, 1)}), msgBox=False)
             elif self.__tab.iat[-1, COL_AN] or not self.__tab.iloc[-1, COL_IA:].isna().all():
-                self.__tab.iloc[-1, :] = self.__nul
+                self.__tab.iloc[-1, :] = self.__nul.iloc[0, :]
         else:
             self.error = ()
             self.setColor()
             self.__tab = self.__nul.copy()
         basTabMod.table(self, self.__tab)
+        self.save()
         return
 
     def load(self, data: db) -> pd.DataFrame | None:
@@ -389,16 +469,17 @@ class Mod(Tab, basTabMod):
             return
         rows = self.__tab.index.size
         if data == rows - 1:
-            self.__tab.iloc[-1, :] = self.__nul
+            self.__tab.iloc[-1, :] = self.__nul.iloc[0, :]
+            self.adjColor(y0=data + 1, y1=data)
         elif data > 0 and data < rows - 1:
             try:
                 Tab.remove(self, data)
             except:
                 self._raise(sys.exc_info()[1].args)
             else:
-                self.__tab.iloc[:-1, :] = self.get()
-                self.__tab = self.__tab.drop(index=data).reset_index(drop=True)
-                self.adjColor(y0=data, y1=data - 1)
+                self.__tab = pd.concat([self.get(), pd.DataFrame([self.__tab.iloc[-1, :]])], ignore_index=True)
+                self.adjColor(y0=data + 1, y1=data)
+        basTabMod.table(self, self.__tab)
         return
 
     def table(self, view: bool = False) -> pd.DataFrame:
@@ -417,14 +498,30 @@ class Mod(Tab, basTabMod):
             self.update()
         return self.get()
 
+    def open(self, idx: int) -> None:
+        group = group_make(self.__tab.iat[idx, COL_AT], self.__tab.iat[idx, COL_AC], self.__tab.iat[idx, COL_AN])
+        t = txn.Mod()
+        v = val.Mod()
+        p = det.panel(t, v)
+        d = db(R'C:\Users\51730\Desktop\dat')
+        v.load(d, group)
+        t.load(d, group)
+        self.__asset_open.emit(p)
+        return
+
+    def get_signal(self) -> Signal:
+        return self.__asset_open
+
 if __name__ == '__main__':
+    d = db(R'C:\Users\51730\Desktop\dat')
+
     app = QApplication()
     i = Mod()
     i.show()
-    # t = Tab()
-    d = db(R'C:\Users\51730\Desktop\dat')
-    # t.load(d)
-    # print(t)
     i.load(d)
     print(i)
     app.exec()
+
+    # t = Tab()
+    # t.load(d)
+    # print(t)

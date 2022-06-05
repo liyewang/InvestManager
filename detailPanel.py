@@ -214,15 +214,16 @@ class panel(QMainWindow):
         return super().keyPressEvent(event)
 
 if __name__ == '__main__':
+    d = db(R'C:\Users\51730\Desktop\dat')
+    group = list(d.get(key=KEY_INF).keys())[1]
+
     app = QApplication()
     t = txn.Mod()
     v = val.Mod()
-    det = panel(t, v)
-    det.show()
-    dat = db(R'C:\Users\51730\Desktop\dat')
-    group = list(dat.get(key=KEY_INF).keys())[0]
-    v.load(dat, group)
-    t.load(dat, group)
+    p = panel(t, v)
+    p.show()
+    v.load(d, group)
+    t.load(d, group)
     # v.table(group)
     # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

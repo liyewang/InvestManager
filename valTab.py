@@ -6,7 +6,6 @@ from PySide6.QtCore import Signal
 from db import *
 from basTab import *
 import txnTab as txn
-import infTab as inf
 
 TAG_DT = 'Date'
 TAG_UV = 'Unit Net Value'
@@ -300,12 +299,17 @@ class Mod(Tab, basTabMod):
 
 
 if __name__ == '__main__':
+    d = db(R'C:\Users\51730\Desktop\dat')
+    group = list(d.get(key=KEY_INF).keys())[1]
+
     app = QApplication()
     t = txn.Tab()
-    v = Mod()
-    t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    v.table('FUND_519697', t.table())
+    t.load(d, group)
+    v = Mod(txn_tab=t.table())
+    v.load(d, group)
     v.show()
+    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    # v.table('FUND_519697', t.table())
     print(v.get_code())
     print(v.get_name())
     print(v.table())

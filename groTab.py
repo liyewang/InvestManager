@@ -39,7 +39,6 @@ class Tab:
         self.config()
         if data is None:
             self.__db = db()
-            self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
         else:
             self.load(data)
         return
@@ -152,7 +151,7 @@ class Tab:
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
-        self.__db.set(GRP_HOME, KEY_GRO, self.__tab)
+        self.__db.set(group_make(GRP_HOME), KEY_GRO, self.__tab)
         self.__db.save()
         return
 
@@ -172,7 +171,7 @@ class Tab:
         return
 
     def load(self, data: db) -> pd.DataFrame:
-        tab = data.get(GRP_HOME, KEY_GRO)
+        tab = data.get(group_make(GRP_HOME), KEY_GRO)
         self.__db = data
         if tab is None:
             self.update()

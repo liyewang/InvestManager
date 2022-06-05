@@ -486,10 +486,15 @@ class Mod(Tab, basTabMod):
         return self.__txn_update
 
 if __name__ == '__main__':
+    d = db(R'C:\Users\51730\Desktop\dat')
+    group = list(d.get(key=KEY_INF).keys())[1]
+
     app = QApplication()
     t = Mod()
     t.show()
-    t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    t.load(d, group)
+    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+    print(group)
     print(t.table())
     print(t.avgRate())
     app.exec()
