@@ -17,7 +17,7 @@ TAG_HA = 'Holding Amount'
 TAG_PR = 'Profit Rate'
 TAG_AR = 'Average Rate'
 
-class panel(QMainWindow):
+class Wid(QWidget):
     def __init__(self, txn_mod: txn.Mod, val_mod: val.Mod) -> None:
         super().__init__()
         self.setMinimumSize(1366, 768)
@@ -79,13 +79,10 @@ class panel(QMainWindow):
         rlayout.addWidget(self.__stat, 1)
         rlayout.addWidget(self.__val_mod.view, 9)
 
-        self.__main = QWidget()
-        self.setCentralWidget(self.__main)
-        layout = QHBoxLayout(self.__main)
+        layout = QHBoxLayout()
         layout.addLayout(llayout, 7)
         layout.addLayout(rlayout, 3)
-        # layout.addWidget(self.__val_mod.view, 3)
-
+        self.setLayout(layout)
         return
 
     @Slot()
@@ -215,13 +212,13 @@ class panel(QMainWindow):
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
-    group = list(d.get(key=KEY_INF).keys())[1]
+    group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
     t = txn.Mod()
     v = val.Mod()
-    p = panel(t, v)
-    p.show()
+    a = Wid(t, v)
+    a.show()
     v.load(d, group)
     t.load(d, group)
     # v.table(group)

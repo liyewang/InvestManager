@@ -1,15 +1,15 @@
 import sys
 
 import numpy as np
-from matplotlib.backends.backend_qt5agg import FigureCanvas
-from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import axes3d
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout,
                                QHeaderView, QLabel, QMainWindow, QSlider,
                                QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
+from matplotlib.backends.backend_qt5agg import FigureCanvas
+from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import axes3d
 
 
 """This example implements the interaction between Qt Widgets and a 3D

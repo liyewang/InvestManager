@@ -85,9 +85,11 @@ class db:
         if not (type(data) is pd.DataFrame or type(data) is pd.Series):
             raise TypeError(f'Unsupported data type [{type(data)}].')
         if data.empty:
-            return
-        if group in self.__db:
-            if not data.equals(self.__db[group]):
+            if group in self.__db and key in self.__db[group]:
+                del self.__db[group][key]
+                self.__changed = True
+        elif group in self.__db:
+            if not (key in self.__db[group] and data.equals(self.__db[group][key])):
                 self.__db[group][key] = data.copy()
                 self.__changed = True
         else:

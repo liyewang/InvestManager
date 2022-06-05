@@ -212,19 +212,19 @@ class Tab:
             self.__tab = tab
         return self.__tab.copy()
 
-class Mod(Tab, basTabMod):
+class Mod(Tab, basMod):
     __err_sig = Signal(tuple)
     def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
         try:
             Tab.__init__(self, data, txn_tab)
         except:
-            basTabMod.__init__(self, Tab.table(self))
+            basMod.__init__(self, Tab.table(self))
             if sys.exc_info()[1].args[0] == DATE_ERR:
                 self.__err_sig.emit(sys.exc_info()[1].args)
             else:
                 self._raise(sys.exc_info()[1].args)
         else:
-            basTabMod.__init__(self, Tab.table(self))
+            basMod.__init__(self, Tab.table(self))
         self.view.setColumnHidden(COL_HS, True)
         self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
@@ -256,7 +256,7 @@ class Mod(Tab, basTabMod):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return basTabMod.data(self, index, role)
+        return basMod.data(self, index, role)
 
     def load(self, data: db, group: str) -> pd.DataFrame | None:
         try:
@@ -274,13 +274,13 @@ class Mod(Tab, basTabMod):
             try:
                 Tab.table(self, data, txn_tab)
             except:
-                basTabMod.table(self, Tab.table(self))
+                basMod.table(self, Tab.table(self))
                 if sys.exc_info()[1].args[0] == DATE_ERR:
                     self.__err_sig.emit(sys.exc_info()[1].args)
                 else:
                     self._raise(sys.exc_info()[1].args)
             else:
-                basTabMod.table(self, Tab.table(self))
+                basMod.table(self, Tab.table(self))
         return Tab.table(self)
     
     def read_csv(self, file: str) -> pd.DataFrame | None:
@@ -300,7 +300,7 @@ class Mod(Tab, basTabMod):
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
-    group = list(d.get(key=KEY_INF).keys())[1]
+    group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
     t = txn.Tab()

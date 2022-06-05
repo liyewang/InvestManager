@@ -2,10 +2,6 @@ import sys
 
 import numpy as np
 from scipy.stats import norm
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QApplication,
@@ -14,6 +10,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
 )
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_qt5agg import FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 
 
 """This example implements the interaction between Qt Widgets and a 2D

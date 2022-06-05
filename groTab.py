@@ -183,10 +183,10 @@ class Tab:
     def table(self) -> pd.DataFrame:
         return self.__tab.copy()
 
-class Mod(Tab, basTabMod):
+class Mod(Tab, basMod):
     def __init__(self, data: db | None = None) -> None:
         Tab.__init__(self)
-        basTabMod.__init__(self, self.table())
+        basMod.__init__(self, self.table())
         if data is not None:
             self.load(data)
         self.view.setMinimumWidth(500)
@@ -222,19 +222,22 @@ class Mod(Tab, basTabMod):
         try:
             Tab.load(self, data)
         except:
-            basTabMod.table(self, self.table())
+            basMod.table(self, self.table())
             self._raise(sys.exc_info()[1].args)
             return None
         else:
-            basTabMod.table(self, self.table())
+            basMod.table(self, self.table())
         return self.table()
 
 if __name__ == '__main__':
+    d = db(R'C:\Users\51730\Desktop\dat')
+
     app = QApplication()
-    # g = Tab()
     g = Mod()
     g.show()
-    d = db(R'C:\Users\51730\Desktop\dat')
     g.load(d)
     print(g.table())
     app.exec()
+
+    # g = Tab()
+    # print(g.table())

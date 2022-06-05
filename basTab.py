@@ -24,7 +24,7 @@ COLOR = (COLOR_CRIT, COLOR_WARN, COLOR_INFO)
 MSG_BOX = (QMessageBox.critical, QMessageBox.warning, QMessageBox.information)
 MSG_TAG = ('CRITICAL', 'WARNING', 'INFORMATION')
 
-class basTabView(QTableView):
+class basView(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
         QTableView.__init__(self, parent)
         # self.resize(1280, 720)
@@ -35,7 +35,7 @@ class basTabView(QTableView):
         self.setAutoScroll(False)
         return
 
-class basTabMod(QAbstractTableModel):
+class basMod(QAbstractTableModel):
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.error = ()
@@ -43,7 +43,7 @@ class basTabMod(QAbstractTableModel):
         if tabView:
             self.view = tabView()
         else:
-            self.view = basTabView()
+            self.view = basView()
         self.view.setModel(self)
         self.__ForeColor = {COLOR_CRIT[FORE]: set(), COLOR_WARN[FORE]: set(), COLOR_INFO[FORE]: set()}
         self.__BackColor = {COLOR_CRIT[BACK]: set(), COLOR_WARN[BACK]: set(), COLOR_INFO[BACK]: set()}
@@ -272,7 +272,7 @@ if __name__ == '__main__':
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
     
-    tv = basTabMod(df)
+    tv = basMod(df)
     tv.show()
 
     app.exec()

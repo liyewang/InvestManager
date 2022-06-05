@@ -5,7 +5,7 @@ import pandas as pd
 import sys
 from db import *
 from basTab import *
-import detailPanel as det
+import assWid as ass
 import txnTab as txn
 import valTab as val
 
@@ -209,7 +209,7 @@ class Tab:
         self._update(self.__tab.index[-1])
         return
 
-    def remove(self, item: int | str | None = None) -> None:
+    def delete(self, item: int | str | None = None) -> None:
         if type(item) is int:
             group = group_make(self.__tab.iat[item, COL_AT], self.__tab.iat[item, COL_AC], self.__tab.iat[item, COL_AN])
             self.__tab = self.__tab.drop(index=item).reset_index(drop=True)
@@ -310,19 +310,19 @@ class View(QTableView):
         self.__func_ass = func
         return
 
-class Mod(Tab, basTabMod):
+class Mod(Tab, basMod):
     __asset_open = Signal(QWidget)
     def __init__(self, data: db | None = None) -> None:
         Tab.__init__(self)
         self.__tab = self.get()
-        basTabMod.__init__(self, self.__tab, View)
+        basMod.__init__(self, self.__tab, View)
         self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG).astype(COL_TYP)
         if data is None:
             self.update()
         else:
             self.load(data)
         self.view.setMinimumWidth(866)
-        self.view.setDelete(self.remove)
+        self.view.setDelete(self.delete)
         self.view.setUpdate(self.update)
         self.view.setOpen(self.open)
         return
@@ -356,7 +356,7 @@ class Mod(Tab, basTabMod):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return basTabMod.data(self, index, role)
+        return basMod.data(self, index, role)
 
     def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
@@ -401,7 +401,7 @@ class Mod(Tab, basTabMod):
                         self._update(row, False, False)
                     except:
                         self.__tab.iloc[:-1, :] = self.get()
-                        basTabMod.table(self, self.__tab)
+                        basMod.table(self, self.__tab)
                         self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, cols, 1)}))
                         return
                     else:
@@ -410,7 +410,7 @@ class Mod(Tab, basTabMod):
                     self.setColor(FORE, COLOR_GOOD[FORE], 0, row, cols, 1)
                     self.setColor(BACK, COLOR_GOOD[BACK], 0, row, cols, 1)
                 self.__tab.iloc[:-1, :] = self.get()
-                basTabMod.table(self, self.__tab)
+                basMod.table(self, self.__tab)
             if not (data is None or data == rows -1):
                 return
             self.setColor(None, None, 0, rows - 1, cols, 1)
@@ -421,7 +421,7 @@ class Mod(Tab, basTabMod):
                 try:
                     self.add(group)
                 except:
-                    basTabMod.table(self, self.__tab)
+                    basMod.table(self, self.__tab)
                     self._raise((sys.exc_info()[1].args[0], {(0, rows - 1, cols, 1)}))
                 else:
                     self.setColor(FORE, COLOR_GOOD[FORE], 0, rows - 1, cols, 1)
@@ -437,7 +437,7 @@ class Mod(Tab, basTabMod):
             self.error = ()
             self.setColor()
             self.__tab = self.__nul.copy()
-        basTabMod.table(self, self.__tab)
+        basMod.table(self, self.__tab)
         self.save()
         return
 
@@ -452,7 +452,7 @@ class Mod(Tab, basTabMod):
             self.update()
         return self.get()
 
-    def remove(self, data: int | str | None = None) -> None:
+    def delete(self, data: int | str | None = None) -> None:
         if type(data) is str:
             typ, code = group_info(data)[:2]
             if not (typ in ASSET_GRP and code):
@@ -473,13 +473,13 @@ class Mod(Tab, basTabMod):
             self.adjColor(y0=data + 1, y1=data)
         elif data > 0 and data < rows - 1:
             try:
-                Tab.remove(self, data)
+                Tab.delete(self, data)
             except:
                 self._raise(sys.exc_info()[1].args)
             else:
                 self.__tab = pd.concat([self.get(), pd.DataFrame([self.__tab.iloc[-1, :]])], ignore_index=True)
                 self.adjColor(y0=data + 1, y1=data)
-        basTabMod.table(self, self.__tab)
+        basMod.table(self, self.__tab)
         return
 
     def table(self, view: bool = False) -> pd.DataFrame:
@@ -502,11 +502,11 @@ class Mod(Tab, basTabMod):
         group = group_make(self.__tab.iat[idx, COL_AT], self.__tab.iat[idx, COL_AC], self.__tab.iat[idx, COL_AN])
         t = txn.Mod()
         v = val.Mod()
-        p = det.panel(t, v)
+        a = ass.Wid(t, v)
         d = db(R'C:\Users\51730\Desktop\dat')
         v.load(d, group)
         t.load(d, group)
-        self.__asset_open.emit(p)
+        self.__asset_open.emit(a)
         return
 
     def get_signal(self) -> Signal:

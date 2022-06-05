@@ -1,5 +1,7 @@
 import pandas as pd
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QMenu
+from PySide6.QtGui import QContextMenuEvent
 import sys
 from db import *
 from basTab import *
@@ -198,8 +200,6 @@ class Tab:
 
     def __calcTab(self, data: pd.DataFrame) -> None:
         self.__verify(data)
-        if data.empty:
-            return
         rows = data.index.size
         _data = data.copy()
         df = data.fillna(0.)
@@ -343,17 +343,43 @@ class Tab:
             self.__tab = tab
         return self.__tab.copy()
 
-class Mod(Tab, basTabMod):
+class View(QTableView):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        QTableView.__init__(self, parent)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.setAlternatingRowColors(True)
+        self.setAutoScroll(False)
+        self.__func_del = None
+        return
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        idx = self.indexAt(event.pos())
+        menu = QMenu(self)
+        act_del = menu.addAction('Delete')
+        action = menu.exec(event.globalPos())
+        if action == act_del:
+            print('Delete')
+            print(idx.row())
+            if self.__func_del:
+                self.__func_del(idx.row())
+        return super().contextMenuEvent(event)
+
+    def setDelete(self, func) -> None:
+        self.__func_del = func
+        return
+    
+class Mod(Tab, basMod):
     __txn_update = Signal()
     def __init__(self, data: pd.DataFrame | None = None) -> None:
         Tab.__init__(self)
-        basTabMod.__init__(self, Tab.table(self))
+        basMod.__init__(self, Tab.table(self), View)
         self.__nul = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
         if data is None:
             self.__update(Tab.table(self))
         else:
             self.__update(data)
         self.view.setMinimumWidth(866)
+        self.view.setDelete(self.delete)
         return
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
@@ -384,7 +410,7 @@ class Mod(Tab, basTabMod):
                 return int(Qt.AlignCenter)
             else:
                 return int(Qt.AlignRight | Qt.AlignVCenter)
-        return basTabMod.data(self, index, role)
+        return basMod.data(self, index, role)
 
     def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
@@ -436,7 +462,7 @@ class Mod(Tab, basTabMod):
                         if v[0] != 'Date data must be ascending.':
                             self._raise(v, msgBox=False)
                     else:
-                        basTabMod.table(self, self.__tab)
+                        basMod.table(self, self.__tab)
                         self._raise(v)
                 else:
                     self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
@@ -444,12 +470,12 @@ class Mod(Tab, basTabMod):
                 try:
                     self.__tab.iloc[:-1, :] = Tab.table(self, self.__tab.iloc[:-1, :])
                 except:
-                    basTabMod.table(self, self.__tab)
+                    basMod.table(self, self.__tab)
                     self._raise(sys.exc_info()[1].args)
         else:
             self.__tab = self.__nul.copy()
         if not self.error:
-            basTabMod.table(self, self.__tab)
+            basMod.table(self, self.__tab)
             if scroll:
                 self.view.scrollToBottom()
             self.__txn_update.emit()
@@ -464,6 +490,11 @@ class Mod(Tab, basTabMod):
         else:
             self.__update(tab)
         return Tab.table(self)
+
+    def delete(self, row: int) -> None:
+        self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
+        self.__update(scroll=False)
+        return
 
     def table(self, data: pd.DataFrame | None = None, view: bool = False) -> pd.DataFrame:
         if data is not None:
@@ -487,7 +518,7 @@ class Mod(Tab, basTabMod):
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
-    group = list(d.get(key=KEY_INF).keys())[1]
+    group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
     t = Mod()

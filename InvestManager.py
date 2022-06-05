@@ -8,7 +8,7 @@ from db import *
 from basTab import *
 import infTab as inf
 
-class win(QMainWindow):
+class Win(QMainWindow):
     def __init__(self, data: db | None = None) -> None:
         super().__init__()
         if data is None:
@@ -32,5 +32,5 @@ if __name__ == '__main__':
     file = R'C:\Users\51730\Desktop\dat'
     d = db(file)
     print(d)
-    w = win(d)
+    w = Win(d)
     app.exec()
