@@ -144,13 +144,13 @@ class Wid(QWidget):
             nv = self.__tab.iloc[head:tail, val.COL_NV]
             v = self.__tab.iloc[head:tail, val.COL_TS] > 0
             txnBA = (
-                self.__tab.iloc[head:tail, val.COL_DT].loc[v],
-                nv.loc[v],
+                self.__tab.iloc[head:tail, val.COL_DT][v],
+                nv[v],
             )
             v = self.__tab.iloc[head:tail, val.COL_TS] < 0
             txnSA = (
-                self.__tab.iloc[head:tail, val.COL_DT].loc[v],
-                nv.loc[v],
+                self.__tab.iloc[head:tail, val.COL_DT][v],
+                nv[v],
             )
             self.__ax.clear()
             self.__ax2.clear()

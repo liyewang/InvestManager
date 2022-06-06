@@ -74,7 +74,7 @@ class Tab:
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            for i in v.loc[v].index:
+            for i in v[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
                 rects.add((sz, -1, data.columns.size - sz, 1))
@@ -88,7 +88,7 @@ class Tab:
         rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
-            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
+            raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
         if df.dtypes[COL_DT] != 'datetime64[ns]':
@@ -158,7 +158,7 @@ class Tab:
             row_HS = 0
             row_HP = 0
             for i in range(self.__txn_tab.index.size - 1, -1, -1):
-                df = self.__tab.loc[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
+                df = self.__tab[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
                 if df.empty:
                     raise ValueError(DATE_ERR, {(txn.COL_DT, i, 1, 1)})
                 # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \

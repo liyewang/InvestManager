@@ -72,7 +72,7 @@ class Tab:
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            for i in v.loc[v].index:
+            for i in v[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
                 rects.add((sz, -1, data.columns.size - sz, 1))
@@ -86,7 +86,7 @@ class Tab:
         rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
-            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
+            raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
 
         for col in range(COL_IA, len(COL_TAG)):
             if data.dtypes[col] != 'float64':
@@ -111,7 +111,7 @@ class Tab:
 
         v = data.duplicated([TAG_AT, TAG_AC])
         if v.any():
-            for row in v.loc[v].index:
+            for row in v[v].index:
                 rects.add((0, row, data.columns.size, 1))
             raise ValueError('No duplicated asset is allowed.', rects)
         return
@@ -158,7 +158,7 @@ class Tab:
                         group = _group
                 else:
                     val_tab = val.Tab(g.get(KEY_VAL, None), txn_tab).table()
-                self.__tab.iloc[row, :] = self.__calc(group, txn_tab, val_tab)
+                self.__tab.iloc[row] = self.__calc(group, txn_tab, val_tab)
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
@@ -192,11 +192,11 @@ class Tab:
         if item is None:
             data = self.__tab.copy()
         elif type(item) is int:
-            data = self.__tab.iloc[item, :]
+            data = self.__tab.iloc[item]
         elif type(item) is str:
             typ, code = group_info(item)[:2]
             v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
-            data = self.__tab.loc[v]
+            data = self.__tab[v]
         else:
             raise TypeError(f'Unsupported data type [{type(item)}].')
         return data
@@ -217,7 +217,7 @@ class Tab:
         elif type(item) is str:
             typ, code = group_info(item)[:2]
             v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
-            row = self.__tab.loc[v].index
+            row = self.__tab[v].index
             self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
             self.__db.remove(item)
         elif item is None:
@@ -357,7 +357,7 @@ class Mod(Tab, basMod):
             tab = self.get()
             v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
             if v.any():
-                data  = v.loc[v].index[0]
+                data  = v[v].index[0]
             else:
                 return
         elif not (type(data) is int or data is None):
@@ -382,7 +382,7 @@ class Mod(Tab, basMod):
                     try:
                         self._update(row, False, False)
                     except:
-                        self.__tab.iloc[:-1, :] = self.get()
+                        self.__tab.iloc[:-1] = self.get()
                         basMod.table(self, self.__tab)
                         self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, cols, 1)}))
                         return
@@ -391,7 +391,7 @@ class Mod(Tab, basMod):
                 else:
                     self.setColor(FORE, COLOR_GOOD[FORE], 0, row, cols, 1)
                     self.setColor(BACK, COLOR_GOOD[BACK], 0, row, cols, 1)
-                self.__tab.iloc[:-1, :] = self.get()
+                self.__tab.iloc[:-1] = self.get()
                 basMod.table(self, self.__tab)
             if not (data is None or data == rows -1):
                 return
@@ -414,7 +414,7 @@ class Mod(Tab, basMod):
             elif code:
                 self._raise(('Asset type is invalid.', {(COL_AT, rows - 1, 1, 1)}), msgBox=False)
             elif self.__tab.iat[-1, COL_AN] or not self.__tab.iloc[-1, COL_IA:].isna().all():
-                self.__tab.iloc[-1, :] = self.__nul.iloc[0, :]
+                self.__tab.iloc[-1] = self.__nul.iloc[0]
         else:
             self.error = ()
             self.setColor()
@@ -443,7 +443,7 @@ class Mod(Tab, basMod):
             tab = self.get()
             v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
             if v.any():
-                data  = v.loc[v].index[0]
+                data  = v[v].index[0]
             else:
                 return
         elif not (type(data) is int or data is None):
@@ -451,7 +451,7 @@ class Mod(Tab, basMod):
             return
         rows = self.__tab.index.size
         if data == rows - 1:
-            self.__tab.iloc[-1, :] = self.__nul.iloc[0, :]
+            self.__tab.iloc[-1] = self.__nul.iloc[0]
             self.adjColor(y0=data + 1, y1=data)
         elif data >= 0 and data < rows - 1:
             try:
@@ -459,7 +459,7 @@ class Mod(Tab, basMod):
             except:
                 self._raise(sys.exc_info()[1].args)
             else:
-                self.__tab = pd.concat([self.get(), pd.DataFrame([self.__tab.iloc[-1, :]])], ignore_index=True)
+                self.__tab = pd.concat([self.get(), pd.DataFrame([self.__tab.iloc[-1]])], ignore_index=True)
                 self.adjColor(y0=data + 1, y1=data)
         basMod.table(self, self.__tab)
         return

@@ -86,9 +86,9 @@ def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
     else:
         RateSign = 1
     AmtRes = 0.
-    for col in df.loc[df.iloc[:, COL_SS] > 0].index:
+    for col in df[df.iloc[:, COL_SS] > 0].index:
         AmtRes += df.iat[col, COL_SA]
-        for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
+        for row in AmtMat[AmtMat.iloc[:, col] != 0].index:
             if AmtMat.iat[row, col] != 0:
                 AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
             elif df.iat[row, COL_BA] != 0:
@@ -116,7 +116,7 @@ class Tab:
         sz = min(data.columns.size, len(COL_TAG))
         v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
-            for i in v.loc[v].index:
+            for i in v[v].index:
                 rects.add((i, -1, 1, 1))
             if sz < data.columns.size:
                 rects.add((sz, -1, data.columns.size - sz, 1))
@@ -130,7 +130,7 @@ class Tab:
         rows = data.index.size
         v = pd.Series(data.index != range(rows))
         if v.any():
-            raise ValueError('Index error.', {(-1, v.loc[v].index[0], 1, 1)})
+            raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
         if df.dtypes[COL_DT] != 'datetime64[ns]':
@@ -152,38 +152,38 @@ class Tab:
                 else:
                     raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
             v = df.iloc[:, col].isin([float('inf'), NAN])
-            for row in v.loc[v].index:
+            for row in v[v].index:
                 rects.add((col, row, 1, 1))
             if rects:
                 raise ValueError('A finite number is required.', rects)
 
         v = ((df.iloc[:, COL_BA] != 0) | (df.iloc[:, COL_BS] != 0)) & ((df.iloc[:, COL_SA] != 0) | (df.iloc[:, COL_SS] != 0))
-        for row in v.loc[v].index:
+        for row in v[v].index:
             rects.add((COL_BA, row, 4, 1))
         if rects:
             raise ValueError('Buying and Selling data must be in separated rows.', rects)
 
         for col in {COL_BS, COL_SS}:
             v = df.iloc[:, col] < 0
-            for row in v.loc[v].index:
+            for row in v[v].index:
                 rects.add((col, row, 1, 1))
             if rects:
                 raise ValueError('Negative Share is not allowed.', rects)
 
         for col in {(COL_BA, COL_BS), (COL_SA, COL_SS)}:
             v = data.iloc[:, col[0]].isna() & ~data.iloc[:, col[1]].isna()
-            for row in v.loc[v].index:
+            for row in v[v].index:
                 rects.add((col[0], row, 1, 1))
             if rects:
                 raise ValueError('Amount data is missing.', rects)
             v = (df.iloc[:, col[0]] / df.iloc[:, col[1]]).isin([float('inf')])
-            for row in v.loc[v].index:
+            for row in v[v].index:
                 rects.add((col[0], row, 2, 1))
             if rects:
                 raise ValueError('Amount/Share must be finite.', rects)
 
         v = (df.iloc[:, COL_BS] == 0) & (df.iloc[:, COL_SS] == 0)
-        for row in v.loc[v].index:
+        for row in v[v].index:
             rects.add((COL_BA, row, COL_SS - COL_DT, 1))
         if rects:
             raise ValueError('Transaction data is required.', rects)
@@ -229,7 +229,7 @@ class Tab:
         RateSz = 0
         AmtResPrev = 0.
         RatePrev = 0.
-        for col in df.loc[df.iloc[:, COL_SS] > 0].index:
+        for col in df[df.iloc[:, COL_SS] > 0].index:
             Rate = df.iat[col, COL_RR]
             for count in range(self.__MaxCount):
                 if Rate < -1:
@@ -237,7 +237,7 @@ class Tab:
                 else:
                     RateSign = 1
                 AmtRes = df.iat[col, COL_SA]
-                for row in AmtMat.loc[AmtMat.iloc[:, col] != 0].index:
+                for row in AmtMat[AmtMat.iloc[:, col] != 0].index:
                     if AmtMat.iat[row, col]:
                         AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
                     elif df.iat[row, COL_BA]:
@@ -441,7 +441,7 @@ class Mod(Tab, basMod):
                     rows = self.__tab.index.size
                 else:
                     row += 1
-            if not self.__tab.iloc[-1, :].isna().all():
+            if not self.__tab.iloc[-1].isna().all():
                 df = self.__tab.sort_values([TAG_DT, TAG_SS], ignore_index=True)
                 if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
                     self.__tab = df
@@ -468,7 +468,7 @@ class Mod(Tab, basMod):
                     self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
             else:
                 try:
-                    self.__tab.iloc[:-1, :] = Tab.table(self, self.__tab.iloc[:-1, :])
+                    self.__tab.iloc[:-1] = Tab.table(self, self.__tab.iloc[:-1])
                 except:
                     basMod.table(self, self.__tab)
                     self._raise(sys.exc_info()[1].args)
