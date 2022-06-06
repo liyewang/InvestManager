@@ -14,6 +14,7 @@ TAG_HA = 'Holding Amount'
 TAG_HS = 'Holding Share'
 TAG_UP = 'Holding Unit Price'
 TAG_HP = 'Holding Price'
+TAG_TA = 'Transaction Amount'
 TAG_TS = 'Transaction Share'
 
 COL_DT = 0
@@ -23,7 +24,8 @@ COL_HA = 3
 COL_HS = 4
 COL_UP = 5
 COL_HP = 6
-COL_TS = 7
+COL_TA = 7
+COL_TS = 8
 
 COL_TAG = [
     TAG_DT,
@@ -33,6 +35,7 @@ COL_TAG = [
     TAG_HS,
     TAG_UP,
     TAG_HP,
+    TAG_TA,
     TAG_TS,
 ]
 
@@ -44,6 +47,7 @@ COL_TYP = {
     TAG_HS:'float64',
     TAG_UP:'float64',
     TAG_HP:'float64',
+    TAG_TA:'float64',
     TAG_TS:'float64',
 }
 
@@ -133,7 +137,8 @@ class Tab:
                     DATE = 'fld_enddate'
                     self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE) \
                         .sort_values(DATE, ascending=False, ignore_index=True)
-                    self.__tab = pd.concat([self.__tab, pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
+                    self.__tab = pd.concat([self.__tab, pd.DataFrame(
+                        [[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
                     self.__tab.columns = COL_TAG
                 except:
                     raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
@@ -147,7 +152,8 @@ class Tab:
         if txn_tab is not None:
             self.__txn_tab = txn_tab.copy()
         if not (data is None and txn_tab is None) and self.__tab.index.size:
-            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN]], range(self.__tab.index.size))
+            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))
+            txnAmt = self.__txn_tab.iloc[:, txn.COL_BA].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SA].fillna(0.)
             txnShr = self.__txn_tab.iloc[:, txn.COL_BS].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
@@ -161,6 +167,7 @@ class Tab:
                     * self.__txn_tab.iat[i, txn.COL_HS]
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HS] = self.__txn_tab.iat[i, txn.COL_HS]
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UP] = self.__txn_tab.iat[i, txn.COL_HP]
+                self.__tab.iat[df.index[-1], COL_TA] = txnAmt.iat[i]
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0:
@@ -228,6 +235,7 @@ class Mod(Tab, basMod):
         self.view.setColumnHidden(COL_HS, True)
         self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
+        self.view.setColumnHidden(COL_TA, True)
         self.view.setColumnHidden(COL_TS, True)
         self.view.setMinimumWidth(500)
         return

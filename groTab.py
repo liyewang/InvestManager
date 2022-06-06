@@ -4,6 +4,7 @@ from db import *
 from basTab import *
 import txnTab as txn
 import valTab as val
+import time
 
 TAG_DT = 'Date'
 TAG_IA = 'Invest Amount'
@@ -56,25 +57,30 @@ class Tab:
                 raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
             df = df.fillna(0.)
             if start is None:
-                start = df.iat[0, txn.COL_DT]
+                _start = df.iat[0, txn.COL_DT]
+            else:
+                _start = start
             if end is None:
-                end = df.iat[-1, txn.COL_DT]
-            if start > end:
-                raise ValueError(f'Rate period error. start: [{start}], end: [{end}]')
-            head = df.iloc[:, txn.COL_DT] >= start
-            tail = df.iloc[:, txn.COL_DT] <= end
+                _end = df.iat[-1, txn.COL_DT]
+            else:
+                _end = end
+            if _start >= _end:
+                continue
+            head = df.iloc[:, txn.COL_DT] >= _start
+            tail = df.iloc[:, txn.COL_DT] <= _end
             df = df.loc[(head & tail)]
             val_tab = self.__db.get(group, KEY_VAL)
             if val_tab is None:
                 continue
-            v = val_tab.iloc[:, val.COL_DT] >= start
+            v = val_tab.iloc[:, val.COL_DT] < _start
             if v.any():
-                v = val_tab.loc[v].iloc[-1, :]
-                if v.iat[val.COL_HS]:
+                p = val_tab.loc[v].iloc[0, :]
+                s = val_tab.loc[~v].iloc[-1, :]
+                if p.iat[val.COL_HS]:
                     df = pd.concat([pd.DataFrame([[
-                        v.iat[val.COL_DT], v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0., 0., 0.
+                        s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UP], p.iat[val.COL_HS], 0., 0., 0., 0., 0.
                     ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
-            v = val_tab.iloc[:, val.COL_DT] <= end
+            v = val_tab.iloc[:, val.COL_DT] <= _end
             if v.any():
                 v = val_tab.loc[v].iloc[0, :]
                 if v.iat[val.COL_HS]:
@@ -88,10 +94,10 @@ class Tab:
             return NAN
         elif pd.isna(Rate):
             Rate = 0.
+        RatePrev = 0.
+        AmtResPrev = 0.
         for count in range(self.__MaxCount):
-            RatePrev = 0.
             AmtRes = 0.
-            AmtResPrev = 0.
             for i in range(len(dfs)):
                 AmtRes += txn.getAmtRes(dfs[i], AmtMats[i], Rate)
             if abs(AmtRes) < self.__MaxAmtResErr:
@@ -134,22 +140,26 @@ class Tab:
             Rate = _tab.iloc[-1, COL_AR]
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             self.__tab = pd.concat([_tab, self.__tab], ignore_index=True)
+        # t = time.time()
         for date in dates:
             tab = val_tab.loc[val_tab.iloc[:, val.COL_DT] == date]
             HoldAmt = tab.iloc[:, val.COL_HA].sum()
             IvstAmt = (tab.iloc[:, val.COL_UP] * tab.iloc[:, val.COL_HS]).sum()
             v = tab.loc[tab.iloc[:, val.COL_TS] < 0]
-            # p = tab.loc[tab.iloc[:, val.COL_TS] > 0].iloc[:, val.COL_UP]
-            Amt += (v.iloc[:, val.COL_TS] * (v.iloc[:, val.COL_UP] - v.iloc[:, val.COL_UV])).sum()
+            n = v.loc[v.iloc[:, val.COL_UP].isna()]
+            for i in n.index:
+                v.at[i, val.TAG_UP] = val_tab.at[i + 1, val.TAG_UP]
+            Amt += (v.iloc[:, val.COL_TS] * v.iloc[:, val.COL_UP] - v.iloc[:, val.COL_TA]).sum()
             AccuAmt = Amt + HoldAmt - IvstAmt
-            # if tab.iloc[:, val.COL_HS].sum():
-            #     v = _tab.iloc[:, COL_DT] == date
-            #     if v.any():
-            #         Rate = self.__calcRate(end=date, Rate=_tab.loc[v].iat[COL_AR])
-            #     else:
-            #         Rate = self.__calcRate(end=date)
+            if tab.iloc[:, val.COL_HS].any():
+                v = _tab.iloc[:, COL_DT] == date
+                if v.any():
+                    Rate = self.__calcRate(end=date, Rate=Rate)
+                else:
+                    Rate = self.__calcRate(end=date)
             self.__tab.iloc[idx, :] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
+        # print(time.time() - t)
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
         self.__db.set(group_make(GRP_HOME), KEY_GRO, self.__tab)
         self.__db.save()
@@ -177,7 +187,6 @@ class Tab:
             self.update()
         else:
             self.__tab = tab
-            self.update()
         return self.__tab.copy()
 
     def table(self) -> pd.DataFrame:
@@ -240,4 +249,5 @@ if __name__ == '__main__':
     app.exec()
 
     # g = Tab()
+    # g.load(d)
     # print(g.table())

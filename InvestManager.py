@@ -22,8 +22,8 @@ class Win(QMainWindow):
         return
 
     @Slot()
-    def open(self, wiew: QWidget) -> None:
-        self.setCentralWidget(wiew)
+    def open(self, Widget: QWidget) -> None:
+        self.setCentralWidget(Widget)
         return
 
 

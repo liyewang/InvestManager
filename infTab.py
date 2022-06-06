@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtWidgets import QMenu
-from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QAction
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 import pandas as pd
 import sys
 from db import *
@@ -243,28 +243,10 @@ class View(QTableView):
         # self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QTableView.SelectRows)
         self.setContextMenuPolicy(Qt.DefaultContextMenu)
-        # self.setContextMenuPolicy(Qt.ActionsContextMenu)
-        # self.setContextMenuPolicy(Qt.CustomContextMenu)
-        # action = QAction('test2', self)
-        # action.triggered.connect(self.test)
-        # self.addAction(action)
-        # self.customContextMenuRequested.connect(self.test)
-        # header = self.horizontalHeader()
-        # header.setContextMenuPolicy(Qt.CustomContextMenu)
-        # header.addAction(action)
-        # header.customContextMenuRequested.connect(self.test)
         self.__func_del = None
         self.__func_upd = None
         self.__func_ass = None
         return
-
-    # def test(self, pos):
-    #     menu = QMenu(self)
-    #     act_del = menu.addAction('test2')
-    #     action = menu.exec(self.mapToGlobal(pos))
-    #     if action == act_del:
-    #         print('test2')
-    #         print(pos)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         idx = self.indexAt(event.pos())
@@ -388,7 +370,7 @@ class Mod(Tab, basMod):
                 _range = range(rows - 1)
                 self.error = ()
                 self.setColor()
-            elif data < rows - 1 and data > 0:
+            elif data >= 0 and data < rows - 1:
                 _range = (data,)
                 self.setColor(None, None, 0, data, cols, 1)
             else:
@@ -471,7 +453,7 @@ class Mod(Tab, basMod):
         if data == rows - 1:
             self.__tab.iloc[-1, :] = self.__nul.iloc[0, :]
             self.adjColor(y0=data + 1, y1=data)
-        elif data > 0 and data < rows - 1:
+        elif data >= 0 and data < rows - 1:
             try:
                 Tab.delete(self, data)
             except:

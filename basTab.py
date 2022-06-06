@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox, QAbstractItemView
+from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox, QAbstractItemView, QComboBox
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
-from PySide6.QtGui import QColor, QKeyEvent
+from PySide6.QtGui import QColor, QKeyEvent, QAction
 import pandas as pd
 
 FORE = 0
@@ -33,7 +33,26 @@ class basView(QTableView):
         self.setAlternatingRowColors(True)
         # self.setSelectionBehavior(QTableView.SelectRows)
         self.setAutoScroll(False)
+
+        # self.setContextMenuPolicy(Qt.ActionsContextMenu)
+        # self.setContextMenuPolicy(Qt.CustomContextMenu)
+        # action = QAction('test2', self)
+        # action.triggered.connect(self.test)
+        # self.addAction(action)
+        # self.customContextMenuRequested.connect(self.test)
+        # header = self.horizontalHeader()
+        # header.setContextMenuPolicy(Qt.CustomContextMenu)
+        # header.addAction(action)
+        # header.customContextMenuRequested.connect(self.test)
         return
+
+    # def test(self, pos):
+    #     menu = QMenu(self)
+    #     act_del = menu.addAction('test2')
+    #     action = menu.exec(self.mapToGlobal(pos))
+    #     if action == act_del:
+    #         print('test2')
+    #         print(pos)
 
 class basMod(QAbstractTableModel):
     def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
@@ -271,7 +290,7 @@ if __name__ == '__main__':
     df = pd.DataFrame(data={'Date':dt,'A':[4,3,2,1],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
-    
+
     tv = basMod(df)
     tv.show()
 

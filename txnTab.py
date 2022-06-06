@@ -442,7 +442,7 @@ class Mod(Tab, basMod):
                 else:
                     row += 1
             if not self.__tab.iloc[-1, :].isna().all():
-                df = self.__tab.sort_values([TAG_DT, TAG_BS], ignore_index=True)
+                df = self.__tab.sort_values([TAG_DT, TAG_SS], ignore_index=True)
                 if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
                     self.__tab = df
                     mute = False

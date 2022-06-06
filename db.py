@@ -160,7 +160,7 @@ if __name__ == '__main__':
         # print(time.time() - t0)
         # t = txn.Tab()
         # v = val.Tab()
-        d.set('FUND_519069_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:],dtype=float))
+        # d.set('FUND_519069_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:],dtype=float))
         # d.set('FUND_519069_', KEY_TXN, t.table())
         # d.set('FUND_519069_', KEY_VAL, v.table())
         # print(d.get('FUND_519697_', KEY_INF))
