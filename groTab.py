@@ -186,7 +186,6 @@ class Tab:
         if tab is None:
             self.update()
         else:
-            self.__tab = tab
             self.update(tab.iat[0, COL_DT])
             v = self.__tab.iloc[:, COL_DT] == tab.iat[0, COL_DT]
             if not tab.iloc[0].equals(self.__tab[v].iloc[0]):
