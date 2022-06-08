@@ -35,13 +35,14 @@ COL_TYP = {
 }
 
 class Tab:
-    def __init__(self, data: db | None = None) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+    def __init__(self, data: db | None = None, upd: bool = True) -> None:
+        self.__nul = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.__tab = self.__nul.copy()
         self.config()
         if data is None:
             self.__db = db()
         else:
-            self.load(data)
+            self.load(data, upd)
         return
 
     def __repr__(self) -> str:
@@ -121,13 +122,15 @@ class Tab:
                 continue
             if (df.columns != val.COL_TAG).any():
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
-            val_tab = pd.concat([val_tab, df], ignore_index=True)
+            v = df.iloc[:, val.COL_HA] > 0
+            if v.any():
+                val_tab = pd.concat([val_tab, df.iloc[:v[v].index[-1] + 1]], ignore_index=True)
         if val_tab.empty:
             self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
             return
         dates = val_tab.iloc[:, val.COL_DT].drop_duplicates().sort_values(ignore_index=True)
         _tab = self.__tab.sort_values(TAG_DT, ignore_index=True)
-        if start is None or _tab.iloc[0, COL_DT] >= start or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
+        if start is None or _tab.empty or _tab.iloc[0, COL_DT] >= start or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             idx = 0
             Amt = 0
@@ -180,27 +183,32 @@ class Tab:
         self.__MaxAmtResErr = MaxAmtResErr
         return
 
-    def load(self, data: db) -> pd.DataFrame:
+    def load(self, data: db, upd: bool = True) -> pd.DataFrame:
         tab = data.get(group_make(GRP_HOME), KEY_GRO)
         self.__db = data
         if tab is None:
-            self.update()
-        else:
-            self.update(tab.iat[0, COL_DT])
-            v = self.__tab.iloc[:, COL_DT] == tab.iat[0, COL_DT]
-            if not tab.iloc[0].equals(self.__tab[v].iloc[0]):
+            if upd:
                 self.update()
+            else:
+                self.__tab = self.__nul.copy()
+        else:
+            self.__tab = tab.copy()
+            if upd:
+                self.update(tab.iat[0, COL_DT])
+                v = self.__tab.iloc[:, COL_DT] == tab.iat[0, COL_DT]
+                if not tab.iloc[0].equals(self.__tab[v].iloc[0]):
+                    self.update()
         return self.__tab.copy()
 
     def table(self) -> pd.DataFrame:
         return self.__tab.copy()
 
 class Mod(Tab, basMod):
-    def __init__(self, data: db | None = None) -> None:
+    def __init__(self, data: db | None = None, upd: bool = True) -> None:
         Tab.__init__(self)
         basMod.__init__(self, self.table())
         if data is not None:
-            self.load(data)
+            self.load(data, upd)
         self.view.setMinimumWidth(500)
         return
 
@@ -230,9 +238,9 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return super().data(index, role)
 
-    def load(self, data: db) -> pd.DataFrame | None:
+    def load(self, data: db, upd: bool = True) -> pd.DataFrame | None:
         try:
-            Tab.load(self, data)
+            Tab.load(self, data, upd)
         except:
             basMod.table(self, self.table())
             self._raise(sys.exc_info()[1].args)
@@ -245,12 +253,10 @@ if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
 
     app = QApplication()
-    g = Mod()
+    g = Mod(d)
     g.show()
-    g.load(d)
-    print(g.table())
+    print(g)
     app.exec()
 
-    # g = Tab()
-    # g.load(d)
-    # print(g.table())
+    # g = Tab(d)
+    # print(g)

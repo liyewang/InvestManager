@@ -1,4 +1,3 @@
-from unicodedata import name
 import requests
 import pandas as pd
 import sys
@@ -54,14 +53,26 @@ COL_TYP = {
 DATE_ERR = 'Transaction date does not exist.'
 
 class Tab:
-    def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
         self.__code = ''
         self.__name = ''
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__txn_tab = pd.DataFrame(columns=txn.COL_TAG)
         self.__db = None
         self.__grp = None
-        self.__update(data, txn_tab)
+        if type(data) is db and type(group) is str:
+            self.load(data, group, upd)
+        elif type(data) is pd.DataFrame:
+            if group is None:
+                self.__update(data)
+            elif type(group) is str:
+                self.__update(group, data)
+            else:
+                raise TypeError('Unsupported data type.')
+        elif data is None and type(group) is str:
+            self.__update(group)
+        elif not (data is None and group is None):
+            raise TypeError('Unsupported data type.')
         return
 
     def __repr__(self) -> str:
@@ -189,7 +200,7 @@ class Tab:
     def get_name(self) -> str:
         return self.__name
 
-    def load(self, data: db, group: str, update: bool = True) -> pd.DataFrame:
+    def load(self, data: db, group: str, upd: bool = True) -> pd.DataFrame:
         val_tab = data.get(group, KEY_VAL)
         txn_tab = data.get(group, KEY_TXN)
         if val_tab is None:
@@ -198,7 +209,7 @@ class Tab:
             txn_tab = pd.DataFrame(columns=txn.COL_TAG).astype(txn.COL_TYP)
         self.__db = data
         self.__grp = group
-        if update:
+        if upd:
             self.__update(group, txn_tab)
         else:
             self.__tab = val_tab
@@ -211,27 +222,28 @@ class Tab:
             self.__update(data, txn_tab)
         return self.__tab.copy()
 
-    def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
+    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame:
         tab = pd.read_csv(file).astype(COL_TYP)
-        if update:
+        if upd:
             self.__update(tab)
         else:
             self.__tab = tab
         return self.__tab.copy()
 
 class Mod(Tab, basMod):
-    __err_sig = Signal(tuple)
-    def __init__(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
-        try:
-            Tab.__init__(self, data, txn_tab)
-        except:
-            basMod.__init__(self, Tab.table(self))
-            if sys.exc_info()[1].args[0] == DATE_ERR:
-                self.__err_sig.emit(sys.exc_info()[1].args)
+    __txn_err = Signal(tuple)
+    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
+        Tab.__init__(self)
+        basMod.__init__(self, Tab.table(self))
+        if type(data) is db and type(group) is str:
+            self.load(data, group, upd)
+        elif type(data) is pd.DataFrame:
+            if group is None:
+                self.table(data)
             else:
-                self._raise(sys.exc_info()[1].args)
-        else:
-            basMod.__init__(self, Tab.table(self))
+                self.table(group, data)
+        elif data is None and type(group) is str:
+            self.table(group)
         self.view.setColumnHidden(COL_HS, True)
         self.view.setColumnHidden(COL_UP, True)
         self.view.setColumnHidden(COL_HP, True)
@@ -266,14 +278,17 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basMod.data(self, index, role)
 
-    def load(self, data: db, group: str) -> pd.DataFrame | None:
+    def load(self, data: db, group: str, upd: bool = True) -> pd.DataFrame | None:
         try:
             Tab.load(self, data, group, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
-        else:
+        if upd:
             self.table(group)
+        else:
+            self.error = ()
+            basMod.table(self, Tab.table(self))
         return Tab.table(self)
 
     def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -284,7 +299,7 @@ class Mod(Tab, basMod):
             except:
                 basMod.table(self, Tab.table(self))
                 if sys.exc_info()[1].args[0] == DATE_ERR:
-                    self.__err_sig.emit(sys.exc_info()[1].args)
+                    self.__txn_err.emit(sys.exc_info()[1].args)
                 else:
                     self._raise(sys.exc_info()[1].args)
             else:
@@ -302,23 +317,23 @@ class Mod(Tab, basMod):
             self.table(tab)
         return Tab.table(self)
 
-    def get_signal(self) -> Signal:
-        return self.__err_sig
-
+    def set_raise(self, raise_func) -> None:
+        self.__txn_err.connect(raise_func)
+        return
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
-    group = list(d.get(key=KEY_INF).keys())[0]
+    group = list(d.get(key=KEY_INF).keys())[2]
 
     app = QApplication()
-    t = txn.Tab()
-    t.load(d, group)
-    v = Mod(txn_tab=t.table())
-    v.load(d, group)
+    v = Mod(d, group)
     v.show()
-    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    # v.table('FUND_519697', t.table())
     print(v.get_code())
     print(v.get_name())
     print(v.table())
     app.exec()
+
+    # v = Tab(d, group)
+    # print(v.get_code())
+    # print(v.get_name())
+    # print(v.table())

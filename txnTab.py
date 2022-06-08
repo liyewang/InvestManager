@@ -96,14 +96,18 @@ def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
     return AmtRes
 
 class Tab:
-    def __init__(self, data: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = None
         self.__grp = None
         self.__avg = NAN
         self.config()
-        if data is not None:
+        if type(data) is db and type(group) is str:
+            self.load(data, group)
+        elif type(data) is pd.DataFrame and group is None:
             self.__calcTab(data)
+        elif not (data is None and group is None):
+            raise TypeError('Unsupported data type.')
         return
 
     def __repr__(self) -> str:
@@ -370,14 +374,18 @@ class View(QTableView):
     
 class Mod(Tab, basMod):
     __txn_update = Signal()
-    def __init__(self, data: pd.DataFrame | None = None) -> None:
+    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None) -> None:
         Tab.__init__(self)
         basMod.__init__(self, Tab.table(self), View)
         self.__nul = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
-        if data is None:
+        if type(data) is db and type(group) is str:
+            self.load(data, group)
+        elif type(data) is pd.DataFrame and group is None:
+            self.__update(data)
+        elif data is None and group is None:
             self.__update(Tab.table(self))
         else:
-            self.__update(data)
+            raise TypeError('Unsupported data type.')
         self.view.setMinimumWidth(866)
         self.view.setDelete(self.delete)
         return
@@ -513,19 +521,21 @@ class Mod(Tab, basMod):
             self.__update(tab)
         return Tab.table(self)
 
-    def get_signal(self) -> Signal:
-        return self.__txn_update
+    def set_update(self, upd_func) -> None:
+        self.__txn_update.connect(upd_func)
+        return
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
     group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
-    t = Mod()
+    t = Mod(d, group)
     t.show()
-    t.load(d, group)
-    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-    print(group)
-    print(t.table())
+    print(t)
     print(t.avgRate())
     app.exec()
+
+    # t = Tab(d, group)
+    # print(t)
+    # print(t.avgRate())

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout,
                                 QHBoxLayout, QVBoxLayout, QLabel, QTableWidget, QSlider)
-from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import Qt, Slot, QThread
+from PySide6.QtGui import QKeyEvent, QFont
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
@@ -18,19 +18,38 @@ TAG_PR = 'Profit Rate'
 TAG_AR = 'Average Rate'
 
 class Wid(QWidget):
-    def __init__(self, txn_mod: txn.Mod, val_mod: val.Mod) -> None:
+    def __init__(self, data: db, group: str, upd: bool = True) -> None:
         super().__init__()
-        self.setMinimumSize(1366, 768)
-        self.__txn_mod = txn_mod
-        self.__val_mod = val_mod
+        # self.setMinimumSize(1366, 768)
+        self.__txn_mod = txn.Mod(data, group)
+        self.__val_mod = val.Mod(data, group, upd)
         self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, val.COL_DT]
         self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
         self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
         self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
-        self.__txn_mod.get_signal().connect(self.__update)
-        self.__val_mod.get_signal().connect(self.__txn_raise)
+        self.__txn_mod.set_update(self.__update)
+        self.__val_mod.set_raise(self.__txn_raise)
 
+        self.__fig = Figure()
+        self.__canvas = FigureCanvas(self.__fig)
+        self.__fig.set_canvas(self.__canvas)
+        self.__ax = self.__canvas.figure.subplots()
+        self.__ax2 = self.__ax.twinx()
+        self.__font = FontProperties(fname=FONT_PATH)
+
+        # self.__title = QLabel()
+        # self.__title.setAlignment(Qt.AlignCenter)
+        # font = QFont()
+        # font.setPointSize(16)
+        # font.setWeight(QFont.DemiBold)
+        # self.__title.setFont(font)
+        self.__start_min = 0
+        self.__start_max = 0
+        self.__range_min = 0
+        self.__range_max = 0
+        self.__start = 0
+        self.__range = 0
         self.__plot_start = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
         self.__plot_range = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
         self.__plot_start.valueChanged.connect(self.__plot_start_update)
@@ -44,14 +63,6 @@ class Wid(QWidget):
         self.__plot_start_update()
         self.__plot_range_update()
 
-        self.__fig = Figure()
-        self.__canvas = FigureCanvas(self.__fig)
-        self.__fig.set_canvas(self.__canvas)
-        self.__ax = self.__canvas.figure.subplots()
-        self.__ax2 = self.__ax.twinx()
-        self.__font = FontProperties(fname=FONT_PATH)
-        self.__plot()
-
         self.__plot_start_layout = QHBoxLayout()
         self.__plot_start_layout.addWidget(self.__plot_start_min)
         self.__plot_start_layout.addWidget(self.__plot_start)
@@ -63,6 +74,7 @@ class Wid(QWidget):
         self.__plot_range_layout.addWidget(self.__plot_range_max)
 
         llayout = QVBoxLayout()
+        # llayout.addWidget(self.__title, 5)
         llayout.addWidget(self.__canvas, 60)
         llayout.addWidget(self.__plot_start_title, 1)
         llayout.addLayout(self.__plot_start_layout, 1)
@@ -70,13 +82,13 @@ class Wid(QWidget):
         llayout.addLayout(self.__plot_range_layout, 1)
         llayout.addWidget(self.__txn_mod.view, 30)
 
-        self.__stat = QLabel()
-        self.__stat.setAlignment(Qt.AlignLeft)
+        # self.__stat = QLabel()
+        # self.__stat.setAlignment(Qt.AlignLeft)
         # self.__stat = QTableWidget()
-        self.__show_stat()
+        # self.__show_stat()
 
         rlayout = QVBoxLayout()
-        rlayout.addWidget(self.__stat, 1)
+        # rlayout.addWidget(self.__stat, 1)
         rlayout.addWidget(self.__val_mod.view, 9)
 
         layout = QHBoxLayout()
@@ -168,7 +180,11 @@ class Wid(QWidget):
             self.__ax.set(xlabel='Date', ylabel='Net Value')
             self.__ax.set_title(f'{self.__val_mod.get_name()} ({self.__val_mod.get_code()})',
                 fontsize=16, fontproperties=self.__font)
-            self.__ax.legend(['Net Value', 'MA125', 'MA250', 'MA500', 'Buying', 'Selling', 'Holding Price'])
+            r125 = (nv.iat[-1] / self.__avg125.iat[tail - 1] - 1) * 100
+            r250 = (nv.iat[-1] / self.__avg250.iat[tail - 1] - 1) * 100
+            r500 = (nv.iat[-1] / self.__avg500.iat[tail - 1] - 1) * 100
+            self.__ax.legend(['Net Value', f'MA125 ({r125:+.1f}%)', f'MA250 ({r250:+.1f}%)', f'MA500 ({r500:+.1f}%)',
+                'Buying', 'Selling', 'Holding Price'])
             self.__ax.margins(x=0)
             self.__ax2.set_ylim((self.__ax.set_ylim() / nv.iat[0] - 1) * 100)
             self.__ax2.set_ylabel('Profit Rate (%)')
@@ -176,14 +192,14 @@ class Wid(QWidget):
         self.__canvas.draw()
         return
 
-    def __show_stat(self) -> None:
-        d = {TAG_IA:0, TAG_PA:0, TAG_PR:0, TAG_AR:0}
-        s  = f'{TAG_IA}\t{d[TAG_IA]:12,.2f}\n'
-        s += f'{TAG_PA}\t{d[TAG_PA]:12,.2f}\n'
-        s += f'{TAG_PR}\t{d[TAG_PR] * 100:11,.2f}%\n'
-        s += f'{TAG_AR}\t{d[TAG_AR] * 100:11,.2f}%'
-        self.__stat.setText(s)
-        return
+    # def __show_stat(self) -> None:
+    #     d = {TAG_IA:0, TAG_PA:0, TAG_PR:0, TAG_AR:0}
+    #     s  = f'{TAG_IA}\t{d[TAG_IA]:12,.2f}\n'
+    #     s += f'{TAG_PA}\t{d[TAG_PA]:12,.2f}\n'
+    #     s += f'{TAG_PR}\t{d[TAG_PR] * 100:11,.2f}%\n'
+    #     s += f'{TAG_AR}\t{d[TAG_AR] * 100:11,.2f}%'
+    #     self.__stat.setText(s)
+    #     return
 
     @Slot()
     def __update(self) -> None:
@@ -193,10 +209,11 @@ class Wid(QWidget):
         self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
         self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
         self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
+        # self.__title.setText(f'{self.__val_mod.get_name()}({self.__val_mod.get_code()})')
         self.__plot_start_update()
         self.__plot_range_update()
         self.__plot()
-        self.__show_stat()
+        # self.__show_stat()
         return
 
     @Slot()
@@ -215,12 +232,8 @@ if __name__ == '__main__':
     group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
-    t = txn.Mod()
-    v = val.Mod()
-    a = Wid(t, v)
+    a = Wid(d, group)
     a.show()
-    v.load(d, group)
-    t.load(d, group)
     # v.table(group)
     # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

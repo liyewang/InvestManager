@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal, Slot
+from PySide6.QtCore import Signal, Slot, QThread
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 import pandas as pd
@@ -49,17 +49,13 @@ COL_TYP = {
     TAG_AR:'float64',
 }
 
-FORE_GOOD = 0x00bf00
-BACK_GOOD = 0xdfffdf
-COLOR_GOOD = (FORE_GOOD, BACK_GOOD)
-
 class Tab:
-    def __init__(self, data: db | None = None) -> None:
+    def __init__(self, data: db | None = None, upd: bool = True) -> None:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         if data is None:
             self.__db = db()
         else:
-            self.load(data)
+            self.load(data, upd)
         return
 
     def __repr__(self) -> str:
@@ -150,19 +146,19 @@ class Tab:
             if g:
                 txn_tab = g.get(KEY_TXN, None)
                 if online:
-                    v = val.Tab(group, txn_tab)
+                    v = val.Tab(txn_tab, group)
                     val_tab = v.table()
                     _group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], v.get_name())
                     if group != _group:
                         self.__db.move(group, _group)
                         group = _group
                 else:
-                    val_tab = val.Tab(g.get(KEY_VAL, None), txn_tab).table()
+                    val_tab = val.Tab(g.get(KEY_VAL, None)).table(txn_tab=txn_tab)
                 self.__tab.iloc[row] = self.__calc(group, txn_tab, val_tab)
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
-                    self.__tab.iat[row, COL_AN] = val.Tab(group).get_name()
+                    self.__tab.iat[row, COL_AN] = val.Tab(group=group).get_name()
                     group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
@@ -171,7 +167,7 @@ class Tab:
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
-    def load(self, data: db, update: bool = True) -> pd.DataFrame:
+    def load(self, data: db, upd: bool = True) -> pd.DataFrame:
         self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, df in self.__db.get(key=KEY_INF).items():
@@ -180,7 +176,7 @@ class Tab:
             df = pd.concat([pd.DataFrame([group_info(group)], [0], [TAG_AT, TAG_AC, TAG_AN]), df], axis=1)
             self.__tab = pd.concat([self.__tab, df], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
-        if update:
+        if upd:
             self._update()
         return self.__tab.copy()
 
@@ -228,11 +224,11 @@ class Tab:
         self.__db.save()
         return
 
-    def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
+    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame:
         self.__tab = pd.concat(
             [self.__tab, pd.read_csv(file).iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
-        if update:
+        if upd:
             self._update()
         return self.__tab.copy()
 
@@ -294,15 +290,17 @@ class View(QTableView):
 
 class Mod(Tab, basMod):
     __asset_open = Signal(QWidget)
-    def __init__(self, data: db | None = None) -> None:
+    def __init__(self, data: db | None = None, upd: bool = True) -> None:
         Tab.__init__(self)
         self.__tab = self.get()
         basMod.__init__(self, self.__tab, View)
+        self.__db = None
         self.__nul = pd.DataFrame([['', '', '', NAN, NAN, NAN, NAN, NAN]], [0], COL_TAG).astype(COL_TYP)
         if data is None:
-            self.update()
+            self.__tab = self.__nul.copy()
+            basMod.table(self, self.__tab)
         else:
-            self.load(data)
+            self.load(data, upd)
         self.view.setMinimumWidth(866)
         self.view.setDelete(self.delete)
         self.view.setUpdate(self.update)
@@ -389,8 +387,8 @@ class Mod(Tab, basMod):
                     else:
                         self._raise((sys.exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
                 else:
-                    self.setColor(FORE, COLOR_GOOD[FORE], 0, row, cols, 1)
-                    self.setColor(BACK, COLOR_GOOD[BACK], 0, row, cols, 1)
+                    self.setColor(FORE, COLOR_INFO[FORE], 0, row, cols, 1)
+                    self.setColor(BACK, COLOR_INFO[BACK], 0, row, cols, 1)
                 self.__tab.iloc[:-1] = self.get()
                 basMod.table(self, self.__tab)
             if not (data is None or data == rows -1):
@@ -406,8 +404,8 @@ class Mod(Tab, basMod):
                     basMod.table(self, self.__tab)
                     self._raise((sys.exc_info()[1].args[0], {(0, rows - 1, cols, 1)}))
                 else:
-                    self.setColor(FORE, COLOR_GOOD[FORE], 0, rows - 1, cols, 1)
-                    self.setColor(BACK, COLOR_GOOD[BACK], 0, rows - 1, cols, 1)
+                    self.setColor(FORE, COLOR_INFO[FORE], 0, rows - 1, cols, 1)
+                    self.setColor(BACK, COLOR_INFO[BACK], 0, rows - 1, cols, 1)
                     self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
             elif typ:
                 self._raise(('Asset code is required.', {(COL_AC, rows - 1, 1, 1)}), msgBox=False)
@@ -423,15 +421,18 @@ class Mod(Tab, basMod):
         self.save()
         return
 
-    def load(self, data: db) -> pd.DataFrame | None:
+    def load(self, data: db, upd: bool = True) -> pd.DataFrame | None:
         try:
             Tab.load(self, data, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
-        else:
-            self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+        self.__db = data
+        self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+        if upd:
             self.update()
+        else:
+            basMod.table(self, self.__tab)
         return self.get()
 
     def delete(self, data: int | str | None = None) -> None:
@@ -469,41 +470,36 @@ class Mod(Tab, basMod):
             return self.__tab
         return self.get()
 
-    def read_csv(self, file: str) -> pd.DataFrame | None:
+    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame | None:
         try:
             Tab.read_csv(self, file, False)
         except:
             self._raise(sys.exc_info()[1].args)
             return None
-        else:
-            self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+        self.__tab = pd.concat([self.get(), self.__nul], ignore_index=True)
+        if upd:
             self.update()
+        else:
+            basMod.table(self, self.__tab)
         return self.get()
 
     def open(self, idx: int) -> None:
         group = group_make(self.__tab.iat[idx, COL_AT], self.__tab.iat[idx, COL_AC], self.__tab.iat[idx, COL_AN])
-        t = txn.Mod()
-        v = val.Mod()
-        a = ass.Wid(t, v)
-        d = db(R'C:\Users\51730\Desktop\dat')
-        v.load(d, group)
-        t.load(d, group)
-        self.__asset_open.emit(a)
+        self.__asset_open.emit(ass.Wid(self.__db, group, False))
         return
 
-    def get_signal(self) -> Signal:
-        return self.__asset_open
+    def set_open(self, open_func) -> None:
+        self.__asset_open.connect(open_func)
+        return
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
 
     app = QApplication()
-    i = Mod()
+    i = Mod(d)
     i.show()
-    i.load(d)
     print(i)
     app.exec()
 
-    # t = Tab()
-    # t.load(d)
+    # t = Tab(d)
     # print(t)
