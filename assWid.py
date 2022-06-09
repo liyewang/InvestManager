@@ -29,6 +29,8 @@ class Wid(QWidget):
     def __init__(self, data: db, group: str, upd: bool = True) -> None:
         super().__init__()
         # self.setMinimumSize(1366, 768)
+        self.__db = data
+        self.__grp = group
         self.__txn_mod = txn.Mod(data, group)
         self.__val_mod = val.Mod(data, group, upd)
         self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
@@ -214,8 +216,11 @@ class Wid(QWidget):
     #     return
 
     @Slot()
-    def __update(self) -> None:
-        self.__val_mod.table(txn_tab=self.__txn_mod.table())
+    def __update(self, online: bool = False) -> None:
+        if online:
+            self.__val_mod.table(self.__grp, self.__txn_mod.table())
+        else:
+            self.__val_mod.table(txn_tab=self.__txn_mod.table())
         self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, val.COL_DT]
         self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
@@ -240,8 +245,9 @@ class Wid(QWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         print(event)
-        if event.text() == '\u0013':
-            print('ok')
+        if event.key() == Qt.Key_F5:
+            print('Update')
+            self.__update(True)
         return super().keyPressEvent(event)
 
 if __name__ == '__main__':

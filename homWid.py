@@ -226,6 +226,16 @@ class Wid(QWidget):
         self.__inf_mod.open(self.__inf_mod.view.currentIndex().row())
         return
 
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        print(event)
+        if event.key() == Qt.Key_Return:
+            self.__assOpen()
+        elif event.key() == Qt.Key_F5:
+            self.__assUpd()
+        elif event.key() == Qt.Key_Delete:
+            self.__assDel()
+        return super().keyPressEvent(event)
+
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')
 
