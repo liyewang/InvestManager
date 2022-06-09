@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout,
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QComboBox,
                                 QHBoxLayout, QVBoxLayout, QLabel, QTableWidget, QSlider)
 from PySide6.QtCore import Qt, Slot, QThread
 from PySide6.QtGui import QKeyEvent, QFont
@@ -86,9 +86,13 @@ class Wid(QWidget):
         # self.__stat.setAlignment(Qt.AlignLeft)
         # self.__stat = QTableWidget()
         # self.__show_stat()
+        # combo = QComboBox()
+        # combo.addItems(ASSET_GRP)
+        # combo.currentTextChanged.connect(self.__plot)
 
         rlayout = QVBoxLayout()
         # rlayout.addWidget(self.__stat, 1)
+        # rlayout.addWidget(combo, 1)
         rlayout.addWidget(self.__val_mod.view, 9)
 
         layout = QHBoxLayout()
@@ -219,6 +223,11 @@ class Wid(QWidget):
     @Slot()
     def __txn_raise(self, args: tuple) -> None:
         self.__txn_mod._raise(args)
+        return
+
+    def show(self) -> None:
+        super().show()
+        self.__txn_mod.view.scrollToBottom()
         return
 
     def keyPressEvent(self, event: QKeyEvent) -> None:

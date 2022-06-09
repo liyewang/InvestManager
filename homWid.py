@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QApplication, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QSlider, QLabel
+from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QSlider, QLabel,
+                                QComboBox, QLineEdit, QPushButton)
 from PySide6.QtCore import Qt, Slot, QThread
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
@@ -44,23 +45,45 @@ class Wid(QWidget):
         self.__plot_start_update()
         self.__plot_range_update()
 
-        self.__plot_start_layout = QHBoxLayout()
-        self.__plot_start_layout.addWidget(self.__plot_start_min)
-        self.__plot_start_layout.addWidget(self.__plot_start)
-        self.__plot_start_layout.addWidget(self.__plot_start_max)
+        plot_start_layout = QHBoxLayout()
+        plot_start_layout.addWidget(self.__plot_start_min)
+        plot_start_layout.addWidget(self.__plot_start)
+        plot_start_layout.addWidget(self.__plot_start_max)
 
-        self.__plot_range_layout = QHBoxLayout()
-        self.__plot_range_layout.addWidget(self.__plot_range_min)
-        self.__plot_range_layout.addWidget(self.__plot_range)
-        self.__plot_range_layout.addWidget(self.__plot_range_max)
+        plot_range_layout = QHBoxLayout()
+        plot_range_layout.addWidget(self.__plot_range_min)
+        plot_range_layout.addWidget(self.__plot_range)
+        plot_range_layout.addWidget(self.__plot_range_max)
+
+        assetType = QComboBox()
+        assetType.addItems(ASSET_GRP)
+        assetCode = QLineEdit()
+        assetCode.setPlaceholderText(inf.TAG_AC)
+        assetAdd = QPushButton()
+        assetAdd.setText('Add')
+        assetAdd.clicked.connect(self.__add)
+        assetUpd = QPushButton()
+        assetUpd.setText('Update')
+        assetDel = QPushButton()
+        assetDel.setText('Delete')
+        assetOpen = QPushButton()
+        assetOpen.setText('Open')
+        ctrl_layout = QHBoxLayout()
+        ctrl_layout.addWidget(assetType)
+        ctrl_layout.addWidget(assetCode)
+        ctrl_layout.addWidget(assetAdd)
+        ctrl_layout.addWidget(assetUpd)
+        ctrl_layout.addWidget(assetDel)
+        ctrl_layout.addWidget(assetOpen)
 
         llayout = QVBoxLayout()
-        llayout.addWidget(self.__canvas, 60)
+        llayout.addWidget(self.__canvas, 50)
         llayout.addWidget(self.__plot_start_title, 1)
-        llayout.addLayout(self.__plot_start_layout, 1)
+        llayout.addLayout(plot_start_layout, 1)
         llayout.addWidget(self.__plot_range_title, 1)
-        llayout.addLayout(self.__plot_range_layout, 1)
-        llayout.addWidget(self.__inf_mod.view, 30)
+        llayout.addLayout(plot_range_layout, 1)
+        llayout.addWidget(self.__inf_mod.view, 40)
+        llayout.addLayout(ctrl_layout, 6)
 
         layout = QHBoxLayout()
         layout.addLayout(llayout, 7)
@@ -151,6 +174,10 @@ class Wid(QWidget):
         self.__plot()
         return
 
+    @Slot()
+    def __add(self) -> None:
+        print('Add')
+        return
 
 if __name__ == '__main__':
     d = db(R'C:\Users\51730\Desktop\dat')

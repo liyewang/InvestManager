@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal, Slot, QThread
-from PySide6.QtWidgets import QMenu
+from PySide6.QtWidgets import QMenu, QStyle
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 import pandas as pd
 import sys
@@ -109,7 +109,7 @@ class Tab:
         if v.any():
             for row in v[v].index:
                 rects.add((0, row, data.columns.size, 1))
-            raise ValueError('No duplicated asset is allowed.', rects)
+            raise ValueError('Duplicated asset is not allowed.', rects)
         return
 
     def __calc(self, group: str, txn_tab: pd.DataFrame | None = None, val_tab: pd.DataFrame | None = None) -> pd.Series:
@@ -199,9 +199,11 @@ class Tab:
 
     def add(self, group: str) -> None:
         typ, code = group_info(group)[:2]
-        self.__tab = pd.concat([self.__tab, pd.DataFrame(
+        tab = pd.concat([self.__tab, pd.DataFrame(
             [[typ, code, '']], columns=[TAG_AT, TAG_AC, TAG_AN]
         )], ignore_index=True)
+        self.__verify(tab)
+        self.__tab = tab
         self._update(self.__tab.index[-1])
         return
 
@@ -241,7 +243,7 @@ class View(QTableView):
         self.setContextMenuPolicy(Qt.DefaultContextMenu)
         self.__func_del = None
         self.__func_upd = None
-        self.__func_ass = None
+        self.__func_open = None
         return
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -252,6 +254,7 @@ class View(QTableView):
         menu = QMenu(self)
         en_upd = not flags & Qt.ItemIsEditable
         if en_upd:
+            act_open = menu.addAction('Open')
             act_upd = menu.addAction('Update')
         act_del = menu.addAction('Delete')
         action = menu.exec(event.globalPos())
@@ -265,27 +268,32 @@ class View(QTableView):
             print(idx.row())
             if self.__func_upd:
                 self.__func_upd(idx.row())
+        elif action == act_open:
+            print('Open')
+            print(idx.row())
+            if self.__func_open:
+                self.__func_open(idx.row())
         return super().contextMenuEvent(event)
-
-    def setDelete(self, func) -> None:
-        self.__func_del = func
-        return
-
-    def setUpdate(self, func) -> None:
-        self.__func_upd = func
-        return
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         idx = self.indexAt(event.position().toPoint())
         flags = idx.flags()
         if flags == Qt.ItemIsEnabled | Qt.ItemIsSelectable:
             print(f'Goto {idx.row()}')
-            if self.__func_ass:
-                self.__func_ass(idx.row())
+            if self.__func_open:
+                self.__func_open(idx.row())
         return super().mouseDoubleClickEvent(event)
 
     def setOpen(self, func) -> None:
-        self.__func_ass = func
+        self.__func_open = func
+        return
+
+    def setUpdate(self, func) -> None:
+        self.__func_upd = func
+        return
+
+    def setDelete(self, func) -> None:
+        self.__func_del = func
         return
 
 class Mod(Tab, basMod):
@@ -310,7 +318,7 @@ class Mod(Tab, basMod):
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         if index.row() == self.__tab.index.size - 1:
             if index.column() <= COL_AC:
-                return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
+                return Qt.ItemIsEnabled | Qt.ItemIsEditable
             else:
                 return Qt.NoItemFlags
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
@@ -455,6 +463,10 @@ class Mod(Tab, basMod):
             self.__tab.iloc[-1] = self.__nul.iloc[0]
             self.adjColor(y0=data + 1, y1=data)
         elif data >= 0 and data < rows - 1:
+            if self.__tab.iloc[data, COL_IA:].sum():
+                msg = 'Asset is not empty.\nContinue deleting?'
+                if QMessageBox.warning(None, 'Warning', msg, QMessageBox.Yes, QMessageBox.No) != QMessageBox.Yes:
+                    return
             try:
                 Tab.delete(self, data)
             except:
@@ -462,7 +474,7 @@ class Mod(Tab, basMod):
             else:
                 self.__tab = pd.concat([self.get(), pd.DataFrame([self.__tab.iloc[-1]])], ignore_index=True)
                 self.adjColor(y0=data + 1, y1=data)
-        basMod.table(self, self.__tab)
+        self.update(self.__tab.index[-1])
         return
 
     def table(self, view: bool = False) -> pd.DataFrame:

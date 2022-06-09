@@ -532,6 +532,7 @@ if __name__ == '__main__':
     app = QApplication()
     t = Mod(d, group)
     t.show()
+    t.view.scrollToBottom()
     print(t)
     print(t.avgRate())
     app.exec()

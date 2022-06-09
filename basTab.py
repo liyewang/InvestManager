@@ -81,7 +81,7 @@ class basMod(QAbstractTableModel):
             return self.__tab.columns.size
         return 0
 
-    def data(self, index: QModelIndex, role: int) -> str | None:
+    def data(self, index: QModelIndex, role: int) -> str | QColor | None:
         if not index.isValid():
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
@@ -132,7 +132,7 @@ class basMod(QAbstractTableModel):
         self.error = args
         if prt:
             print(args[0])
-        self.beginResetModel()
+        # self.beginResetModel()
         idx = None
         if len(args) >= 2 and type(args[1]) is set:
             for v in args[1]:
@@ -149,10 +149,13 @@ class basMod(QAbstractTableModel):
                                         idx = self.index(row, col)
                                         break
                                 break
-        self.endResetModel()
+        # self.endResetModel()
+        topLeft = self.index(0, 0)
+        bottomRight = self.index(self.__tab.index.size - 1, self.__tab.columns.size - 1)
+        self.dataChanged.emit(topLeft, bottomRight, [Qt.ForegroundRole, Qt.BackgroundRole])
         if msgBox:
             if idx is not None:
-                self.view.scrollToBottom()
+                # self.view.scrollToBottom()
                 self.view.scrollTo(idx)
             if type(args[0]) is str:
                 MSG_BOX[level](None, MSG_TAG[level], args[0])
@@ -162,9 +165,11 @@ class basMod(QAbstractTableModel):
 
     def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
         if data is not None:
-            self.beginResetModel()
+            # self.beginResetModel()
+            self.layoutAboutToBeChanged.emit()
             self.__tab = data.copy()
-            self.endResetModel()
+            # self.endResetModel()
+            self.layoutChanged.emit()
         return self.__tab.copy()
 
     def select(self, row: int = -1, col: int = -1) -> None:
@@ -184,8 +189,6 @@ class basMod(QAbstractTableModel):
     def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor | None:
         for color, rects in colorMap.items():
             for rect in rects:
-                # if type(rect) is not QRect:
-                #     continue
                 if rect.contains(col, row):
                     return QColor(color)
         return None
@@ -211,12 +214,10 @@ class basMod(QAbstractTableModel):
         for colorMap in colorMaps:
             if rect.isValid():
                 if color is None:
-                    for _color, rects in colorMap.items():
+                    for rects in colorMap.values():
                         for _rect in rects.copy():
-                            # if type(_rect) is not QRect:
-                            #     continue
-                            if _rect.intersects(rect):
-                                colorMap[_color].remove(_rect)
+                            if rect.intersects(_rect):
+                                rects.remove(_rect)
                 elif color in colorMap:
                     colorMap[color].add(rect)
                 else:
@@ -231,47 +232,50 @@ class basMod(QAbstractTableModel):
     def adjColor(self, x0: int = 0, y0: int = 0, x1: int = 0, y1: int = 0) -> None:
         for colorMap in (self.__ForeColor, self.__BackColor):
             for color, rects in colorMap.items():
-                for rect in rects:
-                    # if type(rect) is not QRect:
-                    #     continue
+                rects_new = set()
+                for rect in rects.copy():
+                    rect1 = QRect(rect)
                     if x0 < x1:
-                        if rect.left() >= x0:
-                            rect.translate(x1 - x0, 0)
-                        elif rect.right() > x0:
-                            rect2 = QRect(rect)
-                            rect.setRight(x0)
+                        if rect1.left() >= x0:
+                            rect1.translate(x1 - x0, 0)
+                        elif rect1.right() > x0:
+                            rect2 = QRect(rect1)
+                            rect1.setRight(x0)
                             rect2.setLeft(x0)
                             rect2.translate(x1 - x0, 0)
-                            colorMap[color].add(rect2)
+                            rects_new.add(rect2)
                     elif x0 > x1:
-                        if rect.left() >= x0:
-                            rect.translate(x1 - x0, 0)
-                        elif rect.left() >= x1:
-                            rect.setLeft(x0)
-                            rect.translate(x1 - x0, 0)
-                        elif rect.right() > x0:
-                            rect.setWidth(rect.width() + x1 - x0)
-                        elif rect.right > x1:
-                            rect.setRight(x1)
+                        if rect1.left() >= x0:
+                            rect1.translate(x1 - x0, 0)
+                        elif rect1.left() >= x1:
+                            rect1.setLeft(x0)
+                            rect1.translate(x1 - x0, 0)
+                        elif rect1.right() > x0:
+                            rect1.setWidth(rect1.width() + x1 - x0)
+                        elif rect1.right > x1:
+                            rect1.setRight(x1)
                     if y0 < y1:
-                        if rect.top() >= y0:
-                            rect.translate(0, y1 - y0)
-                        elif rect.bottom() > y0:
-                            rect2 = QRect(rect)
-                            rect.setBottom(y0)
+                        if rect1.top() >= y0:
+                            rect1.translate(0, y1 - y0)
+                        elif rect1.bottom() > y0:
+                            rect2 = QRect(rect1)
+                            rect1.setBottom(y0)
                             rect2.setTop(y0)
                             rect2.translate(0, y1 - y0)
-                            colorMap[color].add(rect2)
+                            rects_new.add(rect2)
                     elif y0 > y1:
-                        if rect.top() >= y0:
-                            rect.translate(0, y1 - y0)
-                        elif rect.top() >= y1:
-                            rect.setTop(y0)
-                            rect.translate(0, y1 - y0)
-                        elif rect.bottom() > y0:
-                            rect.setHeight(rect.height() + y1 - x0)
-                        elif rect.bottom() > y1:
-                            rect.setBottom(y1)
+                        if rect1.top() >= y0:
+                            rect1.translate(0, y1 - y0)
+                        elif rect1.top() >= y1:
+                            rect1.setTop(y0)
+                            rect1.translate(0, y1 - y0)
+                        elif rect1.bottom() > y0:
+                            rect1.setHeight(rect1.height() + y1 - y0)
+                        elif rect1.bottom() > y1:
+                            rect1.setBottom(y1)
+                    if rect1.height() > 0 and rect1.width() > 0:
+                        rects_new.add(rect1)
+                colorMap[color] = rects_new
         return
 
     def show(self) -> None:
@@ -293,5 +297,6 @@ if __name__ == '__main__':
 
     tv = basMod(df)
     tv.show()
+    # tv.table(df.iloc[:2, :])
 
     app.exec()

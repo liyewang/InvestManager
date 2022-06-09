@@ -32,6 +32,7 @@ class Win(QMainWindow):
     @Slot()
     def open(self, widget: QWidget) -> None:
         self.setCentralWidget(widget)
+        widget.show()
         return
 
 

@@ -153,7 +153,7 @@ if __name__ == '__main__':
     if renew:
         t = txn.Tab()
         t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
-        v = val.Tab('FUND_519697_', t.table())
+        v = val.Tab(t.table(), 'FUND_519697_')
         d.set('FUND_519697_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:],dtype=float))
         d.set('FUND_519697_', KEY_TXN, t.table())
         d.set('FUND_519697_', KEY_VAL, v.table())
