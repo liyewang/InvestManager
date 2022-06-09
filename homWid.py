@@ -9,6 +9,16 @@ from db import *
 import infTab as inf
 import groTab as gro
 
+TAG_GV = 'Gross Value'
+TAG_AR = 'Annual Rate'
+TAG_QR = 'Quarterly Rate'
+
+PLT_TAG = [
+    TAG_GV,
+    TAG_AR,
+    TAG_QR,
+]
+
 class Wid(QWidget):
     def __init__(self, data: db, open_func = None, upd: bool = True) -> None:
         super().__init__()
@@ -55,40 +65,53 @@ class Wid(QWidget):
         plot_range_layout.addWidget(self.__plot_range)
         plot_range_layout.addWidget(self.__plot_range_max)
 
-        assetType = QComboBox()
-        assetType.addItems(ASSET_GRP)
-        assetCode = QLineEdit()
-        assetCode.setPlaceholderText(inf.TAG_AC)
+        self.__assetType = QComboBox()
+        self.__assetType.addItems(ASSET_GRP)
+        self.__assetCode = QLineEdit()
+        self.__assetCode.setPlaceholderText(inf.TAG_AC)
+        self.__assetCode.returnPressed.connect(self.__assAdd)
         assetAdd = QPushButton()
         assetAdd.setText('Add')
-        assetAdd.clicked.connect(self.__add)
-        assetUpd = QPushButton()
-        assetUpd.setText('Update')
+        assetAdd.clicked.connect(self.__assAdd)
         assetDel = QPushButton()
         assetDel.setText('Delete')
+        assetDel.clicked.connect(self.__assDel)
+        assetUpd = QPushButton()
+        assetUpd.setText('Update')
+        assetUpd.clicked.connect(self.__assUpd)
         assetOpen = QPushButton()
         assetOpen.setText('Open')
+        assetOpen.clicked.connect(self.__assOpen)
+
         ctrl_layout = QHBoxLayout()
-        ctrl_layout.addWidget(assetType)
-        ctrl_layout.addWidget(assetCode)
-        ctrl_layout.addWidget(assetAdd)
-        ctrl_layout.addWidget(assetUpd)
-        ctrl_layout.addWidget(assetDel)
-        ctrl_layout.addWidget(assetOpen)
+        ctrl_layout.addWidget(self.__assetType, 15)
+        ctrl_layout.addWidget(self.__assetCode, 20)
+        ctrl_layout.addWidget(assetAdd, 15)
+        ctrl_layout.addSpacing(200)
+        ctrl_layout.addWidget(assetDel, 15)
+        ctrl_layout.addWidget(assetUpd, 15)
+        ctrl_layout.addWidget(assetOpen, 15)
 
         llayout = QVBoxLayout()
-        llayout.addWidget(self.__canvas, 50)
+        llayout.addWidget(self.__canvas, 55)
         llayout.addWidget(self.__plot_start_title, 1)
         llayout.addLayout(plot_start_layout, 1)
         llayout.addWidget(self.__plot_range_title, 1)
         llayout.addLayout(plot_range_layout, 1)
         llayout.addWidget(self.__inf_mod.view, 40)
-        llayout.addLayout(ctrl_layout, 6)
+        llayout.addLayout(ctrl_layout, 1)
+
+        plt_opt = QComboBox()
+        plt_opt.addItems(PLT_TAG)
+        plt_opt.currentTextChanged.connect(self.__plot)
+
+        rlayout = QVBoxLayout()
+        rlayout.addWidget(plt_opt, 1)
+        rlayout.addWidget(self.__gro_mod.view, 99)
 
         layout = QHBoxLayout()
         layout.addLayout(llayout, 7)
-        layout.addWidget(self.__gro_mod.view, 3)
-        # layout.addLayout(rlayout, 3)
+        layout.addLayout(rlayout, 3)
         self.setLayout(layout)
         return
 
@@ -143,7 +166,7 @@ class Wid(QWidget):
         self.__plot_range_title.setText(f'Range: {self.__range}')
         return
 
-    def __plot(self) -> None:
+    def __plot(self, opt: str = PLT_TAG[0]) -> None:
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
@@ -153,7 +176,7 @@ class Wid(QWidget):
             self.__ax2.clear()
             self.__ax.plot(date, x, lw=0.5, ms=3)
             self.__ax.set(xlabel='Date', ylabel='Amount')
-            self.__ax.set_title('Gross Assets')
+            self.__ax.set_title(opt)
             self.__ax.margins(x=0)
             if x.iat[0]:
                 self.__ax2.set_ylim((self.__ax.set_ylim() / x.iat[0] - 1) * 100)
@@ -175,8 +198,32 @@ class Wid(QWidget):
         return
 
     @Slot()
-    def __add(self) -> None:
+    def __assAdd(self) -> None:
         print('Add')
+        print(self.__assetType.currentText())
+        print(self.__assetCode.text())
+        self.__inf_mod.add(self.__assetType.currentText(), self.__assetCode.text())
+        self.__assetCode.clear()
+        return
+
+    @Slot()
+    def __assDel(self) -> None:
+        print('Delete')
+        print(self.__inf_mod.view.currentIndex().row())
+        self.__inf_mod.delete(self.__inf_mod.view.currentIndex().row())
+        return
+
+    @Slot()
+    def __assUpd(self) -> None:
+        print('Update')
+        self.__inf_mod.update()
+        return
+
+    @Slot()
+    def __assOpen(self) -> None:
+        print('Open')
+        print(self.__inf_mod.view.currentIndex().row())
+        self.__inf_mod.open(self.__inf_mod.view.currentIndex().row())
         return
 
 if __name__ == '__main__':

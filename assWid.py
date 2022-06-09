@@ -11,11 +11,19 @@ import valTab as val
 
 FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
 
-TAG_IA = 'Invest Amount'
-TAG_PA = 'Profit Amount'
-TAG_HA = 'Holding Amount'
-TAG_PR = 'Profit Rate'
-TAG_AR = 'Average Rate'
+# TAG_IA = 'Invest Amount'
+# TAG_PA = 'Profit Amount'
+# TAG_HA = 'Holding Amount'
+# TAG_PR = 'Profit Rate'
+# TAG_AR = 'Average Rate'
+
+TAG_VL = 'Value'
+TAG_MA = 'Mean Average'
+
+PLT_TAG = [
+    TAG_VL,
+    TAG_MA,
+]
 
 class Wid(QWidget):
     def __init__(self, data: db, group: str, upd: bool = True) -> None:
@@ -86,14 +94,14 @@ class Wid(QWidget):
         # self.__stat.setAlignment(Qt.AlignLeft)
         # self.__stat = QTableWidget()
         # self.__show_stat()
-        # combo = QComboBox()
-        # combo.addItems(ASSET_GRP)
-        # combo.currentTextChanged.connect(self.__plot)
+        plt_opt = QComboBox()
+        plt_opt.addItems(PLT_TAG)
+        plt_opt.currentTextChanged.connect(self.__plot)
 
         rlayout = QVBoxLayout()
         # rlayout.addWidget(self.__stat, 1)
-        # rlayout.addWidget(combo, 1)
-        rlayout.addWidget(self.__val_mod.view, 9)
+        rlayout.addWidget(plt_opt, 1)
+        rlayout.addWidget(self.__val_mod.view, 99)
 
         layout = QHBoxLayout()
         layout.addLayout(llayout, 7)
@@ -152,7 +160,7 @@ class Wid(QWidget):
         self.__plot_range_title.setText(f'Range: {self.__range}')
         return
 
-    def __plot(self) -> None:
+    def __plot(self, opt: str = PLT_TAG[0]) -> None:
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
