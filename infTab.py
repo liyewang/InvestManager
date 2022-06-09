@@ -146,21 +146,20 @@ class Tab:
             group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
             g = self.__db.get(group)
             if g:
-                txn_tab = g.get(KEY_TXN, None)
                 if online:
-                    v = val.Tab(txn_tab, group)
+                    v = val.Tab(self.__db, group)
                     val_tab = v.table()
                     _group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], v.get_name())
                     if group != _group:
                         self.__db.move(group, _group)
                         group = _group
                 else:
-                    val_tab = val.Tab(g.get(KEY_VAL, None)).table(txn_tab=txn_tab)
-                self.__tab.iloc[row] = self.__calc(group, txn_tab, val_tab)
+                    val_tab = val.Tab(self.__db, group, False).table()
+                self.__tab.iloc[row] = self.__calc(group, g.get(KEY_TXN, None), val_tab)
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
-                    self.__tab.iat[row, COL_AN] = val.Tab(group=group).get_name()
+                    self.__tab.iat[row, COL_AN] = val.Tab(self.__db, group).get_name()
                     group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
