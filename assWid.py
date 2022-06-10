@@ -251,7 +251,7 @@ class Wid(QWidget):
         return super().keyPressEvent(event)
 
 if __name__ == '__main__':
-    d = db(R'C:\Users\51730\Desktop\dat')
+    d = db(DB_PATH)
     group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()

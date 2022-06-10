@@ -38,8 +38,7 @@ class Win(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication()
-    file = R'C:\Users\51730\Desktop\dat'
-    d = db(file)
+    d = db(DB_PATH)
     print(d)
     w = Win(d)
     app.exec()

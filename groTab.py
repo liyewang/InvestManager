@@ -250,7 +250,7 @@ class Mod(Tab, basMod):
         return self.table()
 
 if __name__ == '__main__':
-    d = db(R'C:\Users\51730\Desktop\dat')
+    d = db(DB_PATH)
 
     app = QApplication()
     g = Mod(d)

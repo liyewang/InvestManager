@@ -1,6 +1,10 @@
 import pandas as pd
 from copy import deepcopy
 
+DB_PATH = R'C:\Users\51730\Desktop\dat'
+# DB_PATH = ''.join(__file__.split('.')[:-1]) + '.h5'
+# DB_PATH =  os.path.join(os.path.dirname(os.path.abspath(__file__)), f'{__file__.split(".")[0]}.h5')
+
 NAN = float('nan')
 
 KEY_INF = 'INF'
@@ -133,18 +137,16 @@ class db:
 
 
 if __name__ == '__main__':
-    import os
     import infTab as inf
     import txnTab as txn
     import valTab as val
     import time
     renew = True
     renew = False
-    file = R'C:\Users\51730\Desktop\dat'
     if renew:
-        os.remove(file)
-    d = db(file)
-    # with pd.HDFStore(file) as hdf:
+        os.remove(DB_PATH)
+    d = db(DB_PATH)
+    # with pd.HDFStore(DB_PATH) as hdf:
     #     for a in hdf.walk('/FUND_519697'):
     #         print(a)
     # d.remove()
@@ -169,4 +171,3 @@ if __name__ == '__main__':
         # print(d.get('FUND_519069_', KEY_VAL))
         d.save()
     print(d)
-# os.path.join(os.path.dirname(os.path.abspath(__file__)), f'{__file__.split(".")[0]}.db')

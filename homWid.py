@@ -10,11 +10,13 @@ import infTab as inf
 import groTab as gro
 
 TAG_GV = 'Gross Value'
+TAG_AP = gro.TAG_AP
 TAG_AR = 'Annual Rate'
 TAG_QR = 'Quarterly Rate'
 
 PLT_TAG = [
     TAG_GV,
+    TAG_AP,
     TAG_AR,
     TAG_QR,
 ]
@@ -171,15 +173,20 @@ class Wid(QWidget):
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
-            x = self.__tab.iloc[head:tail, gro.COL_HA]
+            x1 = self.__tab.iloc[head:tail, gro.COL_HA]
+            x2 = self.__tab.iloc[head:tail, gro.COL_IA]
             self.__ax.clear()
             self.__ax2.clear()
-            self.__ax.plot(date, x, lw=0.5, ms=3)
+            self.__ax.plot(
+                date, x1,
+                date, x2, 'm-.',
+                lw=0.5, ms=3)
             self.__ax.set(xlabel='Date', ylabel='Amount')
             self.__ax.set_title(opt)
             self.__ax.margins(x=0)
-            if x.iat[0]:
-                self.__ax2.set_ylim((self.__ax.set_ylim() / x.iat[0] - 1) * 100)
+            self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
+            if x1.iat[0]:
+                self.__ax2.set_ylim((self.__ax.set_ylim() / x1.iat[0] - 1) * 100)
             else:
                 self.__ax2.set_ylim(0, 100)
             self.__ax2.set_ylabel('Percent (%)')
@@ -237,7 +244,7 @@ class Wid(QWidget):
         return super().keyPressEvent(event)
 
 if __name__ == '__main__':
-    d = db(R'C:\Users\51730\Desktop\dat')
+    d = db(DB_PATH)
 
     app = QApplication()
     h = Wid(d)
