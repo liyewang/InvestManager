@@ -140,6 +140,7 @@ if __name__ == '__main__':
     import infTab as inf
     import txnTab as txn
     import valTab as val
+    import os
     import time
     renew = True
     renew = False

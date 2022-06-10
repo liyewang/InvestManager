@@ -12,7 +12,7 @@ import groTab as gro
 TAG_GV = 'Gross Value'
 TAG_AP = gro.TAG_AP
 TAG_AR = 'Annual Rate'
-TAG_QR = 'Quarterly Rate'
+TAG_QR = 'Quart. Rate'
 
 PLT_TAG = [
     TAG_GV,
@@ -37,6 +37,10 @@ class Wid(QWidget):
         self.__fig.set_canvas(self.__canvas)
         self.__ax = self.__canvas.figure.subplots()
         self.__ax2 = self.__ax.twinx()
+
+        self.__plt_opt = QComboBox()
+        self.__plt_opt.addItems(PLT_TAG)
+        self.__plt_opt.currentTextChanged.connect(self.__plot)
 
         self.__start_min = 0
         self.__start_max = 0
@@ -103,12 +107,8 @@ class Wid(QWidget):
         llayout.addWidget(self.__inf_mod.view, 40)
         llayout.addLayout(ctrl_layout, 1)
 
-        plt_opt = QComboBox()
-        plt_opt.addItems(PLT_TAG)
-        plt_opt.currentTextChanged.connect(self.__plot)
-
         rlayout = QVBoxLayout()
-        rlayout.addWidget(plt_opt, 1)
+        rlayout.addWidget(self.__plt_opt, 1)
         rlayout.addWidget(self.__gro_mod.view, 99)
 
         layout = QHBoxLayout()
@@ -168,23 +168,32 @@ class Wid(QWidget):
         self.__plot_range_title.setText(f'Range: {self.__range}')
         return
 
-    def __plot(self, opt: str = PLT_TAG[0]) -> None:
+    def __plot(self) -> None:
+        opt = self.__plt_opt.currentText()
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
-            date = self.__date[head:tail]
-            x1 = self.__tab.iloc[head:tail, gro.COL_HA]
-            x2 = self.__tab.iloc[head:tail, gro.COL_IA]
             self.__ax.clear()
             self.__ax2.clear()
-            self.__ax.plot(
-                date, x1,
-                date, x2, 'm-.',
-                lw=0.5, ms=3)
+            date = self.__date[head:tail]
+            if opt == TAG_GV:
+                x1 = self.__tab.iloc[head:tail, gro.COL_HA]
+                x2 = self.__tab.iloc[head:tail, gro.COL_IA]
+                self.__ax.plot(
+                    date, x1,
+                    date, x2, 'm-.',
+                    lw=0.5, ms=3)
+                self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
+            elif opt == TAG_AP:
+                x1 = self.__tab.iloc[head:tail, gro.COL_AP]
+                self.__ax.plot(date, x1, lw=0.5, ms=3)
+            elif opt == TAG_AR:
+                pass
+            elif opt == TAG_QR:
+                pass
             self.__ax.set(xlabel='Date', ylabel='Amount')
             self.__ax.set_title(opt)
             self.__ax.margins(x=0)
-            self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
             if x1.iat[0]:
                 self.__ax2.set_ylim((self.__ax.set_ylim() / x1.iat[0] - 1) * 100)
             else:
