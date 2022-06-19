@@ -37,9 +37,8 @@ class Win(QMainWindow):
         return
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        print(event)
         if event.text() == '\u0013':
-            print('save')
+            print('Save')
             self.__db.save()
         return super().keyPressEvent(event)
 

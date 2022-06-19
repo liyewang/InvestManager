@@ -114,15 +114,16 @@ class Wid(QWidget):
     @Slot()
     def __plot_start_update(self, start: int | None = None) -> None:
         size = self.__tab.index.size
+        range_min_opt = 20
         if size:
             self.__start_min = 1
-            self.__start_max = size
+            self.__start_max = max(self.__start_min, size - range_min_opt + 1)
             if start is not None and start >= self.__start_min and start <= self.__start_max:
                 self.__start = start
             elif self.__start < self.__start_min or self.__start > self.__start_max:
                 self.__start = self.__start_min
             self.__range_max = size - self.__start + 1
-            self.__range_min = min(self.__range_max, 5)
+            self.__range_min = min(self.__range_max, range_min_opt)
         else:
             self.__start_min = 0
             self.__start_max = 0

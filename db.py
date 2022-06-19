@@ -144,7 +144,6 @@ if __name__ == '__main__':
     import infTab as inf
     import txnTab as txn
     import valTab as val
-    import time
     renew = True
     renew = False
     if renew:
@@ -155,7 +154,6 @@ if __name__ == '__main__':
     #         print(a)
     # d.remove()
     # d.remove('FUND_000001')
-    # t0 = time.time()
     if renew:
         t = txn.Tab()
         t.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'txn.csv'))
@@ -163,7 +161,6 @@ if __name__ == '__main__':
         d.set('FUND_519697_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
         d.set('FUND_519697_', KEY_TXN, t.table())
         # d.set('FUND_519697_', KEY_VAL, v.table())
-        # print(time.time() - t0)
         # t = txn.Tab()
         # v = val.Tab()
         # d.set('FUND_519069_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))

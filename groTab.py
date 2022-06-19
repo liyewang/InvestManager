@@ -4,7 +4,6 @@ from db import *
 from basTab import *
 import txnTab as txn
 import valTab as val
-import time
 
 TAG_DT = 'Date'
 TAG_IA = 'Invest Amount'
@@ -145,7 +144,6 @@ class Tab:
             Rate = _tab.iloc[-1, COL_GR]
             self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             self.__tab = pd.concat([_tab, self.__tab], ignore_index=True)
-        # t = time.time()
         for date in dates:
             tab = val_tab[val_tab.iloc[:, val.COL_DT] == date]
             HoldAmt = tab.iloc[:, val.COL_HA].sum()
@@ -164,7 +162,6 @@ class Tab:
                     Rate = self.avgRate(end=date)
             self.__tab.iloc[idx] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
-        # print(time.time() - t)
         self.__tab = self.__tab.sort_index(ascending=False, ignore_index=True)
         self.__db.set(group_make(GRP_HOME), KEY_GRO, self.__tab)
         return
