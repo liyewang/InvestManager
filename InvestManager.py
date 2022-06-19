@@ -33,8 +33,15 @@ class Win(QMainWindow):
     def open(self, widget: QWidget) -> None:
         self.setCentralWidget(widget)
         widget.show()
+        self.__db.save()
         return
 
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        print(event)
+        if event.text() == '\u0013':
+            print('save')
+            self.__db.save()
+        return super().keyPressEvent(event)
 
 if __name__ == '__main__':
     app = QApplication()
@@ -42,3 +49,4 @@ if __name__ == '__main__':
     print(d)
     w = Win(d)
     app.exec()
+    d.save()

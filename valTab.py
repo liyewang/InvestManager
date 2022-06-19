@@ -75,7 +75,7 @@ class Tab:
             raise TypeError('Unsupported data type.')
         return
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.__tab.to_string()
 
     def __verify(self, data: pd.DataFrame) -> None:
@@ -190,8 +190,9 @@ class Tab:
         if self.__db is not None:
             self.__db.set(self.__grp, KEY_VAL, self.__tab)
             if type(data) is str and self.__name != name:
-                self.__db.move(self.__grp, group_make(typ, code, self.__name))
-            self.__db.save()
+                group_new = group_make(typ, code, self.__name)
+                self.__db.move(self.__grp, group_new)
+                self.__grp = group_new
         return
 
     def get_code(self) -> str:
@@ -199,6 +200,9 @@ class Tab:
 
     def get_name(self) -> str:
         return self.__name
+
+    def get_group(self) -> str:
+        return self.__grp
 
     def load(self, data: db, group: str, upd: bool = True) -> pd.DataFrame:
         val_tab = data.get(group, KEY_VAL)
@@ -337,3 +341,5 @@ if __name__ == '__main__':
     # print(v.get_code())
     # print(v.get_name())
     # print(v.table())
+
+    d.save()

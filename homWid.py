@@ -38,10 +38,6 @@ class Wid(QWidget):
         self.__ax = self.__canvas.figure.subplots()
         self.__ax2 = self.__ax.twinx()
 
-        self.__plt_opt = QComboBox()
-        self.__plt_opt.addItems(PLT_TAG)
-        self.__plt_opt.currentTextChanged.connect(self.__plot)
-
         self.__start_min = 0
         self.__start_max = 0
         self.__range_min = 0
@@ -50,16 +46,20 @@ class Wid(QWidget):
         self.__range = 0
         self.__plot_start = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
         self.__plot_range = QSlider(minimum=0, maximum=0, orientation=Qt.Horizontal)
-        self.__plot_start.valueChanged.connect(self.__plot_start_update)
-        self.__plot_range.valueChanged.connect(self.__plot_range_update)
+        self.__plot_start.valueChanged.connect(self.__plot_start_upd)
+        self.__plot_range.valueChanged.connect(self.__plot_range_upd)
         self.__plot_start_min = QLabel()
         self.__plot_start_max = QLabel()
         self.__plot_range_min = QLabel()
         self.__plot_range_max = QLabel()
         self.__plot_start_title = QLabel()
         self.__plot_range_title = QLabel()
-        self.__plot_start_update()
-        self.__plot_range_update()
+
+        self.__plt_opt = QComboBox()
+        self.__plt_opt.addItems(PLT_TAG)
+        self.__plt_opt.currentTextChanged.connect(self.__plot_opt_upd)
+        self.__plot_opt_cfg(self.__plt_opt.currentText())
+        self.__plot()
 
         plot_start_layout = QHBoxLayout()
         plot_start_layout.addWidget(self.__plot_start_min)
@@ -118,17 +118,53 @@ class Wid(QWidget):
         return
 
     @Slot()
-    def __plot_start_update(self, start: int | None = None) -> None:
-        size = self.__tab.index.size
-        if size:
+    def __plot_opt_upd(self, opt: str = TAG_GV) -> None:
+        self.__plot_opt_cfg(opt)
+        self.__plot()
+        return
+
+    def __plot_opt_cfg(self, opt: str) -> None:
+        if opt == TAG_GV:
+            self.__plot_size = self.__tab.index.size
+            self.__range_min_opt = 20
+            self.__ax2.set_axis_on()
+            self.__plot = self.__plot_gv
+        elif opt == TAG_AP:
+            self.__plot_size = self.__tab.index.size
+            self.__range_min_opt = 20
+            self.__ax2.set_axis_on()
+            self.__plot = self.__plot_ap
+        elif opt == TAG_AR:
+            self.__plot_size = self.__gro_mod.yrRate.index.size
+            self.__range_min_opt = 5
+            self.__ax2.set_axis_off()
+            self.__plot = self.__plot_ar
+        elif opt == TAG_QR:
+            self.__plot_size = self.__gro_mod.qtRate.index.size
+            self.__range_min_opt = 4
+            self.__ax2.set_axis_off()
+            self.__plot = self.__plot_qt
+        self.__plot_title = opt
+        self.__plot_start_cfg(self.__plot_start.value())
+        self.__plot_range_cfg(self.__plot_range.value())
+        return
+
+    @Slot()
+    def __plot_start_upd(self, start: int = 0) -> None:
+        self.__plot_start_cfg(start)
+        self.__plot()
+        return
+
+    def __plot_start_cfg(self, start: int = 0) -> None:
+        if self.__plot_size:
             self.__start_min = 1
-            self.__start_max = size
-            if start is not None and start >= self.__start_min and start <= self.__start_max:
+            self.__start_max = max(self.__start_min, self.__plot_size - self.__range_min_opt + 1)
+            if start >= self.__start_min and start <= self.__start_max:
                 self.__start = start
             elif self.__start < self.__start_min or self.__start > self.__start_max:
                 self.__start = self.__start_min
-            self.__range_max = size - self.__start + 1
-            self.__range_min = min(self.__range_max, 5)
+            self.__range_max = self.__plot_size - self.__start + 1
+            self.__range_min = min(self.__range_max, self.__range_min_opt)
         else:
             self.__start_min = 0
             self.__start_max = 0
@@ -140,77 +176,112 @@ class Wid(QWidget):
         self.__plot_start_max.setText(str(self.__start_max))
         self.__plot_range_min.setText(str(self.__range_min))
         self.__plot_range_max.setText(str(self.__range_max))
-        self.__plot_start.valueChanged.disconnect(self.__plot_start_update)
-        self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
+        self.__plot_start.valueChanged.disconnect(self.__plot_start_upd)
+        self.__plot_range.valueChanged.disconnect(self.__plot_range_upd)
         self.__plot_start.setRange(self.__start_min, self.__start_max)
         self.__plot_range.setRange(self.__range_min, self.__range_max)
         if self.__range < self.__range_min or self.__range > self.__range_max:
             self.__range = self.__range_max
             self.__plot_range.setValue(self.__range_max)
-        self.__plot_start.valueChanged.connect(self.__plot_start_update)
-        self.__plot_range.valueChanged.connect(self.__plot_range_update)
+        self.__plot_start.valueChanged.connect(self.__plot_start_upd)
+        self.__plot_range.valueChanged.connect(self.__plot_range_upd)
         self.__plot_start_title.setText(f'Start: {self.__start}')
         self.__plot_range_title.setText(f'Range: {self.__range}')
-        if size:
-            self.__plot()
         return
 
     @Slot()
-    def __plot_range_update(self, range: int | None = None) -> None:
-        if range is not None and range >= self.__range_min and range <= self.__range_max:
+    def __plot_range_upd(self, range: int = 0) -> None:
+        self.__plot_range_cfg(range)
+        self.__plot()
+        return
+
+    def __plot_range_cfg(self, range: int = 0) -> None:
+        if range >= self.__range_min and range <= self.__range_max:
             self.__range = range
-            self.__plot()
         elif self.__range < self.__range_min or self.__range > self.__range_max:
             self.__range = self.__range_max
-            self.__plot_range.valueChanged.disconnect(self.__plot_range_update)
+            self.__plot_range.valueChanged.disconnect(self.__plot_range_upd)
             self.__plot_range.setValue(self.__range_max)
-            self.__plot_range.valueChanged.connect(self.__plot_range_update)
+            self.__plot_range.valueChanged.connect(self.__plot_range_upd)
         self.__plot_range_title.setText(f'Range: {self.__range}')
         return
 
-    def __plot(self) -> None:
-        opt = self.__plt_opt.currentText()
+    def __plot_gv(self) -> None:
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             self.__ax.clear()
-            self.__ax2.clear()
             date = self.__date[head:tail]
-            if opt == TAG_GV:
-                x1 = self.__tab.iloc[head:tail, gro.COL_HA]
-                x2 = self.__tab.iloc[head:tail, gro.COL_IA]
-                self.__ax.plot(
-                    date, x1,
-                    date, x2, 'm-.',
-                    lw=0.5, ms=3)
-                self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
-            elif opt == TAG_AP:
-                x1 = self.__tab.iloc[head:tail, gro.COL_AP]
-                self.__ax.plot(date, x1, lw=0.5, ms=3)
-            elif opt == TAG_AR:
-                pass
-            elif opt == TAG_QR:
-                pass
+            ha = self.__tab.iloc[head:tail, gro.COL_HA]
+            ia = self.__tab.iloc[head:tail, gro.COL_IA]
+            self.__ax.plot(
+                date, ha,
+                date, ia, 'm-.',
+                lw=0.5, ms=3)
+            self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
             self.__ax.set(xlabel='Date', ylabel='Amount')
-            self.__ax.set_title(opt)
             self.__ax.margins(x=0)
-            if x1.iat[0]:
-                self.__ax2.set_ylim((self.__ax.set_ylim() / x1.iat[0] - 1) * 100)
+            if ha.iat[0]:
+                self.__ax2.set_ylim((self.__ax.set_ylim() / ha.iat[0] - 1) * 100)
             else:
                 self.__ax2.set_ylim(0, 100)
             self.__ax2.set_ylabel('Percent (%)')
+            self.__ax.set_title(self.__plot_title)
         self.__ax.grid(True)
         self.__canvas.draw()
         return
 
-    def update(self) -> None:
-        self.__inf_mod.update()
-        self.__gro_mod.update()
+    def __plot_ap(self) -> None:
+        head = self.__start - 1
+        tail = head + self.__range
+        if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
+            self.__ax.clear()
+            date = self.__date[head:tail]
+            ap = self.__tab.iloc[head:tail, gro.COL_AP]
+            self.__ax.plot(date, ap, lw=0.5, ms=3)
+            self.__ax.set(xlabel='Date', ylabel='Amount')
+            self.__ax.margins(x=0)
+            self.__ax.set_title(self.__plot_title)
+        self.__ax.grid(True)
+        self.__canvas.draw()
+        return
+
+    def __plot_ar(self) -> None:
+        head = self.__start - 1
+        tail = head + self.__range
+        if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
+            self.__ax.clear()
+            ar = self.__gro_mod.yrRate.iloc[head:tail].fillna(0.)
+            yr = [f'{ts.year}' for ts in ar.index]
+            bc = self.__ax.bar(yr, ar, width=0.5)
+            self.__ax.margins(y=0.1)
+            self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
+            self.__ax.set_title(self.__plot_title)
+            self.__ax.set(xlabel='Year', ylabel='Rate (%)')
+        self.__ax.grid(False)
+        self.__canvas.draw()
+        return
+
+    def __plot_qt(self) -> None:
+        head = self.__start - 1
+        tail = head + self.__range
+        if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
+            self.__ax.clear()
+            ar = self.__gro_mod.qtRate.iloc[head:tail].fillna(0.)
+            qt = [f'{ts.year}-{ts.quarter}' for ts in ar.index]
+            bc = self.__ax.bar(qt, ar, width=0.5)
+            self.__ax.margins(y=0.1)
+            self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
+            self.__ax.set(xlabel='Quarter', ylabel='Rate (%)')
+            self.__ax.set_title(self.__plot_title)
+        self.__ax.grid(False)
+        self.__canvas.draw()
+        return
+
+    def __plot_upd(self) -> None:
         self.__tab = self.__gro_mod.table().sort_index(ascending=False, ignore_index=True)
         self.__date = self.__tab.iloc[:, gro.COL_DT]
-        self.__plot_start_update()
-        self.__plot_range_update()
-        self.__plot()
+        self.__plot_opt_upd(self.__plt_opt.currentText())
         return
 
     @Slot()
@@ -227,12 +298,15 @@ class Wid(QWidget):
         print('Delete')
         print(self.__inf_mod.view.currentIndex().row())
         self.__inf_mod.delete(self.__inf_mod.view.currentIndex().row())
+        self.__plot_upd()
         return
 
     @Slot()
     def __assUpd(self) -> None:
         print('Update')
         self.__inf_mod.update()
+        self.__gro_mod.update()
+        self.__plot_upd()
         return
 
     @Slot()

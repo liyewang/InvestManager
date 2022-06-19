@@ -49,7 +49,7 @@ COL_TYP = {
 def getAmtMat(df: pd.DataFrame) -> pd.DataFrame:
     rows = df.index.size
     Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
-    AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype=float)
+    AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype='float64')
     row_0 = 0
     BuyShrExp = 0
     ShrBal = 0
@@ -110,7 +110,7 @@ class Tab:
             raise TypeError('Unsupported data type.')
         return
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.__tab.to_string()
 
     def __verify(self, data: pd.DataFrame) -> None:
@@ -211,7 +211,7 @@ class Tab:
         Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
         HoldShrRes = 0
         Amt = 0
-        HoldMat = pd.DataFrame(index=range(rows), columns=range(2), dtype=float)
+        HoldMat = pd.DataFrame(index=range(rows), columns=range(2), dtype='float64')
         for row in range(rows):
             HoldShrRes += Shr.iat[row]
             HoldMat.iat[row, 0] = HoldShrRes
@@ -229,7 +229,7 @@ class Tab:
 
         AmtMat = getAmtMat(df)
 
-        RateMat = pd.Series(index=range(rows), dtype=float)
+        RateMat = pd.Series(index=range(rows), dtype='float64')
         RateSz = 0
         AmtResPrev = 0.
         RatePrev = 0.
@@ -290,7 +290,6 @@ class Tab:
             _avg = Rate
         if self.__db is not None:
             self.__db.set(self.__grp, KEY_TXN, _data)
-            self.__db.save()
         self.__tab = _data
         self.__avg = _avg
         return
@@ -540,3 +539,5 @@ if __name__ == '__main__':
     # t = Tab(d, group)
     # print(t)
     # print(t.avgRate())
+
+    d.save()

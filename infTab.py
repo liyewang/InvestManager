@@ -60,7 +60,7 @@ class Tab:
             self.load(data, upd)
         return
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.__tab.to_string()
 
     def __verify(self, data: pd.DataFrame) -> None:
@@ -136,7 +136,7 @@ class Tab:
                 s.iat[COL_AR] = txn.Tab(txn_tab).avgRate()
         return s
 
-    def _update(self, idx: int | None = None, online: bool = True, save: bool = True) -> None:
+    def _update(self, idx: int | None = None, online: bool = True) -> None:
         if idx is None:
             _range = range(self.__tab.index.size)
         else:
@@ -149,22 +149,18 @@ class Tab:
                 if online:
                     v = val.Tab(self.__db, group)
                     val_tab = v.table()
-                    _group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], v.get_name())
-                    if group != _group:
-                        self.__db.move(group, _group)
-                        group = _group
+                    group = v.get_group()
                 else:
                     val_tab = val.Tab(self.__db, group, False).table()
                 self.__tab.iloc[row] = self.__calc(group, g.get(KEY_TXN, None), val_tab)
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
-                    self.__tab.iat[row, COL_AN] = val.Tab(self.__db, group).get_name()
-                    group = group_make(self.__tab.iat[row, COL_AT], self.__tab.iat[row, COL_AC], self.__tab.iat[row, COL_AN])
+                    v = val.Tab(self.__db, group)
+                    self.__tab.iat[row, COL_AN] = v.get_name()
+                    group = v.get_group()
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
-        if save:
-            self.__db.save()
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
@@ -180,10 +176,6 @@ class Tab:
         if upd:
             self._update()
         return self.__tab.copy()
-
-    def save(self) -> None:
-        self.__db.save()
-        return
 
     def get(self, item: int | str | None = None) -> pd.DataFrame | pd.Series:
         if item is None:
@@ -223,7 +215,6 @@ class Tab:
             self.__db.remove()
         else:
             raise TypeError(f'Unsupported data type [{type(item)}].')
-        self.__db.save()
         return
 
     def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame:
@@ -368,10 +359,10 @@ class Mod(Tab, basMod):
                 _range = ()
             for row in _range:
                 try:
-                    self._update(row, True, False)
+                    self._update(row, True)
                 except:
                     try:
-                        self._update(row, False, False)
+                        self._update(row, False)
                     except:
                         basMod.table(self, self.get())
                         self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, cols, 1)}))
@@ -383,7 +374,6 @@ class Mod(Tab, basMod):
                     self.setColor(BACK, COLOR_INFO[BACK], 0, row, cols, 1)
                 # basMod.table(self, self.get())
         basMod.table(self, self.get())
-        self.save()
         return
 
     def load(self, data: db, upd: bool = True) -> pd.DataFrame | None:
@@ -497,3 +487,5 @@ if __name__ == '__main__':
 
     # t = Tab(d)
     # print(t)
+
+    d.save()

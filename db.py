@@ -1,16 +1,20 @@
+import os
 import pandas as pd
 from copy import deepcopy
 
-DB_PATH = R'C:\Users\51730\Desktop\dat'
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db.h5')
 # DB_PATH = ''.join(__file__.split('.')[:-1]) + '.h5'
-# DB_PATH =  os.path.join(os.path.dirname(os.path.abspath(__file__)), f'{__file__.split(".")[0]}.h5')
+# DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'{__file__.split(".")[0]}.h5')
 
 NAN = float('nan')
 
 KEY_INF = 'INF'
 KEY_TXN = 'TXN'
 KEY_VAL = 'VAL'
+
 KEY_GRO = 'GRO'
+KEY_YRR = 'YRR'
+KEY_QTR = 'QTR'
 
 GRP_FUND = 'FUND'
 GRP_HOME = 'HOME'
@@ -54,7 +58,7 @@ class db:
                 self.__info = hdf.info()
         return
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.__info
 
     def get(self, group: str | None = None, key: str | None = None) -> dict | pd.DataFrame | pd.Series | None:
@@ -140,7 +144,6 @@ if __name__ == '__main__':
     import infTab as inf
     import txnTab as txn
     import valTab as val
-    import os
     import time
     renew = True
     renew = False
@@ -155,15 +158,15 @@ if __name__ == '__main__':
     # t0 = time.time()
     if renew:
         t = txn.Tab()
-        t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
+        t.read_csv(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'txn.csv'))
         v = val.Tab(t.table(), 'FUND_519697_')
-        d.set('FUND_519697_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:],dtype=float))
+        d.set('FUND_519697_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
         d.set('FUND_519697_', KEY_TXN, t.table())
-        d.set('FUND_519697_', KEY_VAL, v.table())
+        # d.set('FUND_519697_', KEY_VAL, v.table())
         # print(time.time() - t0)
         # t = txn.Tab()
         # v = val.Tab()
-        # d.set('FUND_519069_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:],dtype=float))
+        # d.set('FUND_519069_', KEY_INF, pd.DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
         # d.set('FUND_519069_', KEY_TXN, t.table())
         # d.set('FUND_519069_', KEY_VAL, v.table())
         # print(d.get('FUND_519697_', KEY_INF))
@@ -172,3 +175,7 @@ if __name__ == '__main__':
         # print(d.get('FUND_519069_', KEY_VAL))
         d.save()
     print(d)
+    # txns = d.get(key=KEY_TXN)
+    # for t in txns.values():
+    #     if type(t) is pd.DataFrame:
+    #         t.to_csv('dat.csv', index=False)
