@@ -1,7 +1,7 @@
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QComboBox,
-                                QHBoxLayout, QVBoxLayout, QLabel, QTableWidget, QSlider)
-from PySide6.QtCore import Qt, Slot, QThread
-from PySide6.QtGui import QKeyEvent, QFont
+from PySide6.QtWidgets import (QApplication, QWidget, QComboBox, QHBoxLayout,
+                                QVBoxLayout, QLabel, QSlider, QGridLayout)
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
@@ -38,7 +38,7 @@ class Wid(QWidget):
         self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
         self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
         self.__mr_500 = (self.__tab.iloc[:, val.COL_NV] / self.__avg500 - 1) * 100
-        self.__mr_avg = pd.Series(self.__mr_500.mean(), self.__mr_500.index)
+        self.__mr_avg = Series(self.__mr_500.mean(), self.__mr_500.index)
         self.__txn_mod.set_update(self.__update)
         self.__val_mod.set_raise(self.__txn_raise)
 
@@ -255,7 +255,7 @@ class Wid(QWidget):
             self.__ax.clear()
             self.__ax.plot(
                 date, mr_500,
-                date, pd.Series(mr_avg, date.index), 'm-.',
+                date, Series(mr_avg, date.index), 'm-.',
                 txnBA[0], txnBA[1], 'bo',
                 txnSA[0], txnSA[1], 'ro',
                 lw=0.5,

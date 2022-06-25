@@ -1,5 +1,5 @@
-import pandas as pd
-import sys
+from pandas import Timestamp, concat, to_numeric
+from sys import exc_info
 from db import *
 from basTab import *
 import txnTab as txn
@@ -35,10 +35,10 @@ COL_TYP = {
 
 class Tab:
     def __init__(self, data: db | None = None, upd: bool = True) -> None:
-        self.__nul = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.__nul = DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__tab = self.__nul.copy()
-        self.__yr_rate = pd.Series(dtype='float64')
-        self.__qt_rate = pd.Series(dtype='float64')
+        self.__yr_rate = Series(dtype='float64')
+        self.__qt_rate = Series(dtype='float64')
         self.config()
         if data is None:
             self.__db = db()
@@ -49,7 +49,7 @@ class Tab:
     def __str__(self) -> str:
         return self.__tab.to_string()
 
-    def avgRate(self, start: pd.Timestamp | None = None, end: pd.Timestamp | None = None, Rate: float = 0.) -> float:
+    def avgRate(self, start: Timestamp | None = None, end: Timestamp | None = None, Rate: float = 0.) -> float:
         dfs = []
         AmtMats = []
         for group, df in self.__db.get(key=KEY_TXN).items():
@@ -79,14 +79,14 @@ class Tab:
                 p = val_tab[v].iloc[0]
                 s = val_tab[~v].iloc[-1]
                 if p.iat[val.COL_HS]:
-                    df = pd.concat([pd.DataFrame([[
+                    df = concat([DataFrame([[
                         s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UP], p.iat[val.COL_HS], 0., 0., 0., 0., 0.
                     ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
             v = val_tab.iloc[:, val.COL_DT] <= _end
             if v.any():
                 v = val_tab[v].iloc[0]
                 if v.iat[val.COL_HS]:
-                    df = pd.concat([df, pd.DataFrame([[
+                    df = concat([df, DataFrame([[
                         v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0.
                     ]], columns=txn.COL_TAG)], ignore_index=True).astype(txn.COL_TYP)
             if df.index.size:
@@ -94,7 +94,7 @@ class Tab:
                 AmtMats.append(txn.getAmtMat(df))
         if not dfs:
             return NAN
-        elif pd.isna(Rate):
+        elif isna(Rate):
             Rate = 0.
         RatePrev = 0.
         AmtResPrev = 0.
@@ -116,8 +116,8 @@ class Tab:
             raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
         return Rate
 
-    def __tab_upd(self, start: pd.Timestamp | None = None) -> None:
-        val_tab = pd.DataFrame(columns=val.COL_TAG).astype(val.COL_TYP)
+    def __tab_upd(self, start: Timestamp | None = None) -> None:
+        val_tab = DataFrame(columns=val.COL_TAG).astype(val.COL_TYP)
         for group, df in self.__db.get(key=KEY_VAL).items():
             if df is None:
                 continue
@@ -125,14 +125,14 @@ class Tab:
                 raise ValueError(f'DB error in {group}/{KEY_VAL}\n{df}')
             v = df.iloc[:, val.COL_HA] > 0
             if v.any():
-                val_tab = pd.concat([val_tab, df.iloc[:v[v].index[-1] + 1]], ignore_index=True)
+                val_tab = concat([val_tab, df.iloc[:v[v].index[-1] + 1]], ignore_index=True)
         if val_tab.empty:
-            self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+            self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
             return
         dates = val_tab.iloc[:, val.COL_DT].drop_duplicates().sort_values(ignore_index=True)
         _tab = self.__tab.sort_values(TAG_DT, ignore_index=True)
         if start is None or _tab.empty or _tab.iloc[0, COL_DT] >= start or dates.align(_tab.iloc[:, COL_DT])[0].isna().any():
-            self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
+            self.__tab = DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
             idx = 0
             Amt = 0
             Rate = NAN
@@ -142,8 +142,8 @@ class Tab:
             idx = _tab.index.size
             Amt = _tab.iloc[-1, COL_AP] - _tab.iloc[-1, COL_HA] + _tab.iloc[-1, COL_IA]
             Rate = _tab.iloc[-1, COL_GR]
-            self.__tab = pd.DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
-            self.__tab = pd.concat([_tab, self.__tab], ignore_index=True)
+            self.__tab = DataFrame(index=dates.index, columns=COL_TAG).astype(COL_TYP)
+            self.__tab = concat([_tab, self.__tab], ignore_index=True)
         for date in dates:
             tab = val_tab[val_tab.iloc[:, val.COL_DT] == date]
             HoldAmt = tab.iloc[:, val.COL_HA].sum()
@@ -192,77 +192,77 @@ class Tab:
         yr_start = False
         while yr < yr1 or (yr == yr1 and qt <= qt1):
             if qt == 1 or qt == 5:
-                ts = pd.Timestamp(yr, 3, 31)
+                ts = Timestamp(yr, 3, 31)
                 v = self.__qt_rate.index == ts
                 if v.any():
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 1, 1), ts, self.__qt_rate[v].iat[0]))
+                    qtr.append(self.avgRate(Timestamp(yr, 1, 1), ts, self.__qt_rate[v].iat[0]))
                 else:
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 1, 1), ts))
+                    qtr.append(self.avgRate(Timestamp(yr, 1, 1), ts))
                 qti.append(ts)
                 yr_start = True
                 qt = 2
             elif qt == 2:
-                ts = pd.Timestamp(yr, 6, 30)
+                ts = Timestamp(yr, 6, 30)
                 v = self.__qt_rate.index == ts
                 if v.any():
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 4, 1), ts, self.__qt_rate[v].iat[0]))
+                    qtr.append(self.avgRate(Timestamp(yr, 4, 1), ts, self.__qt_rate[v].iat[0]))
                 else:
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 4, 1), ts))
+                    qtr.append(self.avgRate(Timestamp(yr, 4, 1), ts))
                 qti.append(ts)
                 qt = 3
             elif qt == 3:
-                ts = pd.Timestamp(yr, 9, 30)
+                ts = Timestamp(yr, 9, 30)
                 v = self.__qt_rate.index == ts
                 if v.any():
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 7, 1), ts, self.__qt_rate[v].iat[0]))
+                    qtr.append(self.avgRate(Timestamp(yr, 7, 1), ts, self.__qt_rate[v].iat[0]))
                 else:
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 7, 1), ts))
+                    qtr.append(self.avgRate(Timestamp(yr, 7, 1), ts))
                 qti.append(ts)
                 qt = 4
             elif qt == 4:
-                ts = pd.Timestamp(yr, 12, 31)
+                ts = Timestamp(yr, 12, 31)
                 v = self.__qt_rate.index == ts
                 if v.any():
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 10, 1), ts, self.__qt_rate[v].iat[0]))
+                    qtr.append(self.avgRate(Timestamp(yr, 10, 1), ts, self.__qt_rate[v].iat[0]))
                 else:
-                    qtr.append(self.avgRate(pd.Timestamp(yr, 10, 1), ts))
+                    qtr.append(self.avgRate(Timestamp(yr, 10, 1), ts))
                 qti.append(ts)
                 if yr_start:
                     v = self.__yr_rate.index == ts
                     if v.any():
-                        yrr.append(self.avgRate(pd.Timestamp(yr, 1, 1), ts, self.__yr_rate[v].iat[0]))
+                        yrr.append(self.avgRate(Timestamp(yr, 1, 1), ts, self.__yr_rate[v].iat[0]))
                     else:
-                        yrr.append(self.avgRate(pd.Timestamp(yr, 1, 1), ts))
+                        yrr.append(self.avgRate(Timestamp(yr, 1, 1), ts))
                     yri.append(ts)
                 yr += 1
                 qt = 5
-        self.__yr_rate = pd.Series(yrr, yri, dtype='float64')
-        self.__qt_rate = pd.Series(qtr, qti, dtype='float64')
+        self.__yr_rate = Series(yrr, yri, dtype='float64')
+        self.__qt_rate = Series(qtr, qti, dtype='float64')
         self.__db.set(group_make(GRP_HOME), KEY_YRR, self.__yr_rate)
         self.__db.set(group_make(GRP_HOME), KEY_QTR, self.__qt_rate)
         return
 
-    def update(self, start: pd.Timestamp | None = None) -> None:
+    def update(self, start: Timestamp | None = None) -> None:
         self.__tab_upd(start)
         self.__rate_upd()
         return
 
     def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
-        MaxCount = pd.to_numeric(MaxCount, errors='coerce')
+        MaxCount = to_numeric(MaxCount, errors='coerce')
         if MaxCount <= 0:
             raise ValueError('MaxCount must be positive')
         self.__MaxCount = MaxCount
-        dRate = pd.to_numeric(dRate, errors='coerce')
+        dRate = to_numeric(dRate, errors='coerce')
         if dRate <= 0 or dRate >= 1:
             raise ValueError('dRate must be in the range of (0,1).')
         self.__dRate = dRate
-        MaxAmtResErr = pd.to_numeric(MaxAmtResErr, errors='coerce')
+        MaxAmtResErr = to_numeric(MaxAmtResErr, errors='coerce')
         if MaxAmtResErr <= 0:
             raise ValueError('MaxAmtResErr must be positive.')
         self.__MaxAmtResErr = MaxAmtResErr
         return
 
-    def load(self, data: db, upd: bool = True) -> pd.DataFrame:
+    def load(self, data: db, upd: bool = True) -> DataFrame:
         tab = data.get(group_make(GRP_HOME), KEY_GRO)
         yr_rate = data.get(group_make(GRP_HOME), KEY_YRR)
         qt_rate = data.get(group_make(GRP_HOME), KEY_QTR)
@@ -272,8 +272,8 @@ class Tab:
                 self.update()
             else:
                 self.__tab = self.__nul.copy()
-                self.__yr_rate = pd.Series(dtype='float64')
-                self.__qt_rate = pd.Series(dtype='float64')
+                self.__yr_rate = Series(dtype='float64')
+                self.__qt_rate = Series(dtype='float64')
         else:
             self.__tab = tab.copy()
             self.__yr_rate = yr_rate
@@ -285,15 +285,15 @@ class Tab:
                     self.update()
         return self.__tab.copy()
 
-    def table(self) -> pd.DataFrame:
+    def table(self) -> DataFrame:
         return self.__tab.copy()
 
     @property
-    def yrRate(self) -> pd.Series:
+    def yrRate(self) -> Series:
         return self.__yr_rate
 
     @property
-    def qtRate(self) -> pd.Series:
+    def qtRate(self) -> Series:
         return self.__qt_rate
 
 class Mod(Tab, basMod):
@@ -313,12 +313,12 @@ class Mod(Tab, basMod):
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
             v = self.table().iat[index.row(), index.column()]
-            if pd.isna(v):
+            if isna(v):
                 return ''
             if type(v) is str:
                 return v
             col = index.column()
-            if col == COL_DT and type(v) is pd.Timestamp:
+            if col == COL_DT and type(v) is Timestamp:
                 return v.strftime(r'%Y/%m/%d')
             elif col >= COL_GR:
                 return f'{v * 100:,.2f}%'
@@ -331,12 +331,12 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return super().data(index, role)
 
-    def load(self, data: db, upd: bool = True) -> pd.DataFrame | None:
+    def load(self, data: db, upd: bool = True) -> DataFrame | None:
         try:
             Tab.load(self, data, upd)
         except:
             basMod.table(self, self.table())
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         else:
             basMod.table(self, self.table())

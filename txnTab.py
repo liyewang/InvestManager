@@ -1,8 +1,8 @@
-import pandas as pd
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent
-import sys
+from pandas import Timestamp, concat, to_numeric
+from sys import exc_info
 from db import *
 from basTab import *
 
@@ -46,10 +46,10 @@ COL_TYP = {
     TAG_RR: 'float64',
 }
 
-def getAmtMat(df: pd.DataFrame) -> pd.DataFrame:
+def getAmtMat(df: DataFrame) -> DataFrame:
     rows = df.index.size
     Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
-    AmtMat = pd.DataFrame(data=0, index=range(rows), columns=range(rows), dtype='float64')
+    AmtMat = DataFrame(data=0, index=range(rows), columns=range(rows), dtype='float64')
     row_0 = 0
     BuyShrExp = 0
     ShrBal = 0
@@ -80,7 +80,7 @@ def getAmtMat(df: pd.DataFrame) -> pd.DataFrame:
                         break
     return AmtMat
 
-def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
+def getAmtRes(df: DataFrame, AmtMat: DataFrame, Rate: float) -> float:
     if Rate < -1:
         RateSign = -1
     else:
@@ -96,15 +96,15 @@ def getAmtRes(df: pd.DataFrame, AmtMat: pd.DataFrame, Rate: float) -> float:
     return AmtRes
 
 class Tab:
-    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+    def __init__(self, data: db | DataFrame | None = None, group: str | None = None) -> None:
+        self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = None
         self.__grp = None
         self.__avg = NAN
         self.config()
         if type(data) is db and type(group) is str:
             self.load(data, group)
-        elif type(data) is pd.DataFrame and group is None:
+        elif type(data) is DataFrame and group is None:
             self.__calcTab(data)
         elif not (data is None and group is None):
             raise TypeError('Unsupported data type.')
@@ -113,12 +113,12 @@ class Tab:
     def __str__(self) -> str:
         return self.__tab.to_string()
 
-    def __verify(self, data: pd.DataFrame) -> None:
-        if type(data) is not pd.DataFrame:
+    def __verify(self, data: DataFrame) -> None:
+        if type(data) is not DataFrame:
             raise TypeError(f'Unsupported data type [{type(data)}].')
         rects = set()
         sz = min(data.columns.size, len(COL_TAG))
-        v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
+        v = Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
             for i in v[v].index:
                 rects.add((i, -1, 1, 1))
@@ -132,14 +132,14 @@ class Tab:
         if data.empty:
             return
         rows = data.index.size
-        v = pd.Series(data.index != range(rows))
+        v = Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
         if df.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
-                if type(df.iat[row, COL_DT]) is not pd.Timestamp:
+                if type(df.iat[row, COL_DT]) is not Timestamp:
                     rects.add((COL_DT, row, 1, 1))
             if rects:
                 raise TypeError('Date type is required.', rects)
@@ -193,16 +193,16 @@ class Tab:
             raise ValueError('Transaction data is required.', rects)
 
         if (df.iloc[:, COL_DT].sort_values(ignore_index=True) != df.iloc[:, COL_DT]).any():
-            dt_0 = pd.to_datetime(0)
+            dt_0 = to_datetime(0)
             for row in range(rows):
-                dt = pd.to_datetime(df.iat[row, COL_DT])
+                dt = to_datetime(df.iat[row, COL_DT])
                 if dt < dt_0:
                     raise ValueError('Date data must be ascending.', {(COL_DT, row, 1, 1)})
                 dt_0 = dt
 
         return
 
-    def __calcTab(self, data: pd.DataFrame) -> None:
+    def __calcTab(self, data: DataFrame) -> None:
         self.__verify(data)
         rows = data.index.size
         _data = data.copy()
@@ -211,7 +211,7 @@ class Tab:
         Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
         HoldShrRes = 0
         Amt = 0
-        HoldMat = pd.DataFrame(index=range(rows), columns=range(2), dtype='float64')
+        HoldMat = DataFrame(index=range(rows), columns=range(2), dtype='float64')
         for row in range(rows):
             HoldShrRes += Shr.iat[row]
             HoldMat.iat[row, 0] = HoldShrRes
@@ -229,7 +229,7 @@ class Tab:
 
         AmtMat = getAmtMat(df)
 
-        RateMat = pd.Series(index=range(rows), dtype='float64')
+        RateMat = Series(index=range(rows), dtype='float64')
         RateSz = 0
         AmtResPrev = 0.
         RatePrev = 0.
@@ -269,7 +269,7 @@ class Tab:
         elif RateSz > 1:
             AmtResPrev = 0.
             RatePrev = 0.
-            if pd.isna(self.__avg):
+            if isna(self.__avg):
                 Rate = 0.
             else:
                 Rate = self.__avg
@@ -295,31 +295,31 @@ class Tab:
         return
 
     def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
-        MaxCount = pd.to_numeric(MaxCount, errors='coerce')
+        MaxCount = to_numeric(MaxCount, errors='coerce')
         if MaxCount <= 0:
             raise ValueError('MaxCount must be positive')
         self.__MaxCount = MaxCount
-        dRate = pd.to_numeric(dRate, errors='coerce')
+        dRate = to_numeric(dRate, errors='coerce')
         if dRate <= 0 or dRate >= 1:
             raise ValueError('dRate must be in the range of (0,1).')
         self.__dRate = dRate
-        MaxAmtResErr = pd.to_numeric(MaxAmtResErr, errors='coerce')
+        MaxAmtResErr = to_numeric(MaxAmtResErr, errors='coerce')
         if MaxAmtResErr <= 0:
             raise ValueError('MaxAmtResErr must be positive.')
         self.__MaxAmtResErr = MaxAmtResErr
         return
 
-    def isValid(self, data: pd.DataFrame) -> bool:
+    def isValid(self, data: DataFrame) -> bool:
         try:
             self.__verify(data)
         except:
             return False
         return True
 
-    def load(self, data: db, group: str, update: bool = True) -> pd.DataFrame:
+    def load(self, data: db, group: str, update: bool = True) -> DataFrame:
         tab = data.get(group, KEY_TXN)
         if tab is None:
-            tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+            tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         self.__grp = group
         if update:
@@ -328,18 +328,18 @@ class Tab:
             self.__tab = tab
         return self.__tab.copy()
 
-    def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, data: DataFrame | None = None) -> DataFrame:
         if data is not None:
             self.__calcTab(data)
         return self.__tab.copy()
 
-    def avgRate(self, data: pd.DataFrame | None = None) -> float:
+    def avgRate(self, data: DataFrame | None = None) -> float:
         if data is not None:
             self.__calcTab(data)
         return self.__avg
 
-    def read_csv(self, file: str, update: bool = True) -> pd.DataFrame:
-        tab = pd.read_csv(file).astype(COL_TYP)
+    def read_csv(self, file: str, update: bool = True) -> DataFrame:
+        tab = read_csv(file).astype(COL_TYP)
         if update:
             self.__calcTab(tab)
         else:
@@ -373,13 +373,13 @@ class View(QTableView):
     
 class Mod(Tab, basMod):
     __txn_update = Signal()
-    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None) -> None:
+    def __init__(self, data: db | DataFrame | None = None, group: str | None = None) -> None:
         Tab.__init__(self)
         basMod.__init__(self, Tab.table(self), View)
-        self.__nul = pd.DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
+        self.__nul = DataFrame(NAN, [0], COL_TAG).astype(COL_TYP)
         if type(data) is db and type(group) is str:
             self.load(data, group)
-        elif type(data) is pd.DataFrame and group is None:
+        elif type(data) is DataFrame and group is None:
             self.__update(data)
         elif data is None and group is None:
             self.__update(Tab.table(self))
@@ -399,12 +399,12 @@ class Mod(Tab, basMod):
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
             v = self.__tab.iat[index.row(), index.column()]
-            if pd.isna(v):
+            if isna(v):
                 return ''
             if type(v) is str:
                 return v
             col = index.column()
-            if col == COL_DT and type(v) is pd.Timestamp:
+            if col == COL_DT and type(v) is Timestamp:
                 return v.strftime(r'%Y/%m/%d')
             elif col == COL_HP:
                 return f'{v:,.4f}'
@@ -424,7 +424,7 @@ class Mod(Tab, basMod):
             if value == '':
                 value = 'nan'
             if index.column() == COL_DT:
-                self.__tab.iat[index.row(), index.column()] = pd.to_datetime(value, errors='ignore')
+                self.__tab.iat[index.row(), index.column()] = to_datetime(value, errors='ignore')
             else:
                 try:
                     self.__tab.iat[index.row(), index.column()] = float(value)
@@ -434,7 +434,7 @@ class Mod(Tab, basMod):
             return True
         return False
 
-    def __update(self, data: pd.DataFrame | None = None, scroll: bool = True) -> None:
+    def __update(self, data: DataFrame | None = None, scroll: bool = True) -> None:
         self.error = ()
         self.setColor()
         if data is not None:
@@ -460,7 +460,7 @@ class Mod(Tab, basMod):
                 try:
                     self.__tab = Tab.table(self, self.__tab)
                 except:
-                    v = sys.exc_info()[1].args
+                    v = exc_info()[1].args
                     if mute and len(v) >= 2 and type(v[1]) is set:
                         for e in v[1]:
                             if type(e) is tuple and len(e) == 4 and e[1] != rows - 1:
@@ -472,13 +472,13 @@ class Mod(Tab, basMod):
                         basMod.table(self, self.__tab)
                         self._raise(v)
                 else:
-                    self.__tab = pd.concat([self.__tab, self.__nul], ignore_index=True)
+                    self.__tab = concat([self.__tab, self.__nul], ignore_index=True)
             else:
                 try:
                     self.__tab.iloc[:-1] = Tab.table(self, self.__tab.iloc[:-1])
                 except:
                     basMod.table(self, self.__tab)
-                    self._raise(sys.exc_info()[1].args)
+                    self._raise(exc_info()[1].args)
         else:
             self.__tab = self.__nul.copy()
         if not self.error:
@@ -488,11 +488,11 @@ class Mod(Tab, basMod):
             self.__txn_update.emit()
         return
 
-    def load(self, data: db, group: str) -> pd.DataFrame | None:
+    def load(self, data: db, group: str) -> DataFrame | None:
         try:
             tab = Tab.load(self, data, group, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         else:
             self.__update(tab)
@@ -503,18 +503,18 @@ class Mod(Tab, basMod):
         self.__update(scroll=False)
         return
 
-    def table(self, data: pd.DataFrame | None = None, view: bool = False) -> pd.DataFrame:
+    def table(self, data: DataFrame | None = None, view: bool = False) -> DataFrame:
         if data is not None:
             self.__update(data)
         if view:
             return self.__tab.copy()
         return Tab.table(self)
 
-    def read_csv(self, file: str) -> pd.DataFrame | None:
+    def read_csv(self, file: str) -> DataFrame | None:
         try:
             tab = Tab.read_csv(self, file, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         else:
             self.__update(tab)

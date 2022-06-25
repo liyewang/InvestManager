@@ -1,7 +1,7 @@
-import requests
-import pandas as pd
-import sys
 from PySide6.QtCore import Signal
+from requests import get as req_get
+from pandas import Timestamp, concat, read_xml
+from sys import exc_info
 from db import *
 from basTab import *
 import txnTab as txn
@@ -53,16 +53,16 @@ COL_TYP = {
 DATE_ERR = 'Transaction date does not exist.'
 
 class Tab:
-    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
+    def __init__(self, data: db | DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
         self.__code = ''
         self.__name = ''
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
-        self.__txn_tab = pd.DataFrame(columns=txn.COL_TAG)
+        self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.__txn_tab = DataFrame(columns=txn.COL_TAG)
         self.__db = None
         self.__grp = None
         if type(data) is db and type(group) is str:
             self.load(data, group, upd)
-        elif type(data) is pd.DataFrame:
+        elif type(data) is DataFrame:
             if group is None:
                 self.__update(data)
             elif type(group) is str:
@@ -78,12 +78,12 @@ class Tab:
     def __str__(self) -> str:
         return self.__tab.to_string()
 
-    def __verify(self, data: pd.DataFrame) -> None:
-        if type(data) is not pd.DataFrame:
+    def __verify(self, data: DataFrame) -> None:
+        if type(data) is not DataFrame:
             raise TypeError(f'Unsupported data type [{type(data)}].')
         rects = set()
         sz = min(data.columns.size, len(COL_TAG))
-        v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
+        v = Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
             for i in v[v].index:
                 rects.add((i, -1, 1, 1))
@@ -97,14 +97,14 @@ class Tab:
         if data.empty:
             return
         rows = data.index.size
-        v = pd.Series(data.index != range(rows))
+        v = Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
         if df.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
-                if type(df.iat[row, COL_DT]) is not pd.Timestamp:
+                if type(df.iat[row, COL_DT]) is not Timestamp:
                     rects.add((COL_DT, row, 1, 1))
             if rects:
                 raise TypeError('Date type is required.', rects)
@@ -121,22 +121,22 @@ class Tab:
                     raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
 
         if (df.iloc[:, COL_DT].sort_values(ascending=False, ignore_index=True) != df.iloc[:, COL_DT]).any():
-            dt_0 = pd.to_datetime(0)
+            dt_0 = to_datetime(0)
             for row in range(rows):
-                dt = pd.to_datetime(df.iat[row, COL_DT])
+                dt = to_datetime(df.iat[row, COL_DT])
                 if dt >= dt_0:
                     raise ValueError('Date data must be descending.', {(COL_DT, row, 1, 1)})
                 dt_0 = dt
         return
 
-    def __update(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> None:
+    def __update(self, data: str | DataFrame | None = None, txn_tab: DataFrame | None = None) -> None:
         if type(data) is str:
             if not (self.__grp is None or self.__grp == data):
                 raise ValueError('Loaded group can only be changed by load function.')
             typ, code, name = group_info(data)
             if typ == GRP_FUND:
                 try:
-                    df = pd.read_xml(requests.get(
+                    df = read_xml(req_get(
                         f'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode={code}',
                         headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
                     ).text)
@@ -148,14 +148,14 @@ class Tab:
                     DATE = 'fld_enddate'
                     self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE) \
                         .sort_values(DATE, ascending=False, ignore_index=True)
-                    self.__tab = pd.concat([self.__tab, pd.DataFrame(
+                    self.__tab = concat([self.__tab, DataFrame(
                         [[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
                     self.__tab.columns = COL_TAG
                 except:
-                    raise RuntimeError(f'Fail to load Net Value data: {sys.exc_info()[1].args}')
+                    raise RuntimeError(f'Fail to load Net Value data: {exc_info()[1].args}')
             else:
                 raise ValueError(f'Unsupported asset type [{typ}].')
-        elif type(data) is pd.DataFrame:
+        elif type(data) is DataFrame:
             self.__tab = data.copy()
         elif data is not None:
             raise TypeError(f'Unsupported data type [{type(data)}].')
@@ -163,7 +163,7 @@ class Tab:
         if txn_tab is not None:
             self.__txn_tab = txn_tab.copy()
         if not (data is None and txn_tab is None) and self.__tab.index.size:
-            self.__tab.iloc[:, COL_HA:] = pd.DataFrame([[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))
+            self.__tab.iloc[:, COL_HA:] = DataFrame([[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))
             txnAmt = self.__txn_tab.iloc[:, txn.COL_BA].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SA].fillna(0.)
             txnShr = self.__txn_tab.iloc[:, txn.COL_BS].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SS].fillna(0.)
             row_HS = 0
@@ -204,13 +204,13 @@ class Tab:
     def get_group(self) -> str:
         return self.__grp
 
-    def load(self, data: db, group: str, upd: bool = True) -> pd.DataFrame:
+    def load(self, data: db, group: str, upd: bool = True) -> DataFrame:
         val_tab = data.get(group, KEY_VAL)
         txn_tab = data.get(group, KEY_TXN)
         if val_tab is None:
-            val_tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+            val_tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         if txn_tab is None:
-            txn_tab = pd.DataFrame(columns=txn.COL_TAG).astype(txn.COL_TYP)
+            txn_tab = DataFrame(columns=txn.COL_TAG).astype(txn.COL_TYP)
         self.__db = data
         self.__grp = group
         if upd:
@@ -221,13 +221,13 @@ class Tab:
             self.__code, self.__name = group_info(group)[1:]
         return self.__tab.copy()
 
-    def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, data: str | DataFrame | None = None, txn_tab: DataFrame | None = None) -> DataFrame:
         if not (data is None and txn_tab is None):
             self.__update(data, txn_tab)
         return self.__tab.copy()
 
-    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame:
-        tab = pd.read_csv(file).astype(COL_TYP)
+    def read_csv(self, file: str, upd: bool = True) -> DataFrame:
+        tab = read_csv(file).astype(COL_TYP)
         if upd:
             self.__update(tab)
         else:
@@ -236,12 +236,12 @@ class Tab:
 
 class Mod(Tab, basMod):
     __txn_err = Signal(tuple)
-    def __init__(self, data: db | pd.DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
+    def __init__(self, data: db | DataFrame | None = None, group: str | None = None, upd: bool = True) -> None:
         Tab.__init__(self)
         basMod.__init__(self, Tab.table(self))
         if type(data) is db and type(group) is str:
             self.load(data, group, upd)
-        elif type(data) is pd.DataFrame:
+        elif type(data) is DataFrame:
             if group is None:
                 self.table(data)
             else:
@@ -264,12 +264,12 @@ class Mod(Tab, basMod):
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
             v = Tab.table(self).iat[index.row(), index.column()]
-            if pd.isna(v):
+            if isna(v):
                 return ''
             if type(v) is str:
                 return v
             col = index.column()
-            if col == COL_DT and type(v) is pd.Timestamp:
+            if col == COL_DT and type(v) is Timestamp:
                 return v.strftime(r'%Y/%m/%d')
             elif col == COL_HA or col == COL_HS or col == COL_TS:
                 return f'{v:,.2f}'
@@ -282,11 +282,11 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basMod.data(self, index, role)
 
-    def load(self, data: db, group: str, upd: bool = True) -> pd.DataFrame | None:
+    def load(self, data: db, group: str, upd: bool = True) -> DataFrame | None:
         try:
             Tab.load(self, data, group, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         if upd:
             self.table(group)
@@ -295,27 +295,27 @@ class Mod(Tab, basMod):
             basMod.table(self, Tab.table(self))
         return Tab.table(self)
 
-    def table(self, data: str | pd.DataFrame | None = None, txn_tab: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, data: str | DataFrame | None = None, txn_tab: DataFrame | None = None) -> DataFrame:
         if not (data is None and txn_tab is None):
             self.error = ()
             try:
                 Tab.table(self, data, txn_tab)
             except:
                 basMod.table(self, Tab.table(self))
-                if sys.exc_info()[1].args[0] == DATE_ERR:
-                    self.__txn_err.emit(sys.exc_info()[1].args)
+                if exc_info()[1].args[0] == DATE_ERR:
+                    self.__txn_err.emit(exc_info()[1].args)
                 else:
-                    self._raise(sys.exc_info()[1].args)
+                    self._raise(exc_info()[1].args)
             else:
                 basMod.table(self, Tab.table(self))
         return Tab.table(self)
     
-    def read_csv(self, file: str) -> pd.DataFrame | None:
+    def read_csv(self, file: str) -> DataFrame | None:
         self.error = ()
         try:
             tab = Tab.read_csv(self, file, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         else:
             self.table(tab)

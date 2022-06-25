@@ -1,8 +1,8 @@
-from PySide6.QtCore import Signal, Slot, QThread
-from PySide6.QtWidgets import QMenu, QStyle
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
-import pandas as pd
-import sys
+from pandas import concat
+from sys import exc_info
 from db import *
 from basTab import *
 import assWid as ass
@@ -53,7 +53,7 @@ DUP_ERR = 'Duplicated asset is not allowed.'
 
 class Tab:
     def __init__(self, data: db | None = None, upd: bool = True) -> None:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+        self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         if data is None:
             self.__db = db()
         else:
@@ -63,12 +63,12 @@ class Tab:
     def __str__(self) -> str:
         return self.__tab.to_string()
 
-    def __verify(self, data: pd.DataFrame) -> None:
-        if type(data) is not pd.DataFrame:
+    def __verify(self, data: DataFrame) -> None:
+        if type(data) is not DataFrame:
             raise TypeError(f'Unsupported data type [{type(data)}].')
         rects = set()
         sz = min(data.columns.size, len(COL_TAG))
-        v = pd.Series(data.columns[:sz] != COL_TAG[:sz])
+        v = Series(data.columns[:sz] != COL_TAG[:sz])
         if v.any():
             for i in v[v].index:
                 rects.add((i, -1, 1, 1))
@@ -82,7 +82,7 @@ class Tab:
         if data.empty:
             return
         rows = data.index.size
-        v = pd.Series(data.index != range(rows))
+        v = Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
 
@@ -114,19 +114,19 @@ class Tab:
             raise ValueError(DUP_ERR, rects)
         return
 
-    def __calc(self, group: str, txn_tab: pd.DataFrame | None = None, val_tab: pd.DataFrame | None = None) -> pd.Series:
+    def __calc(self, group: str, txn_tab: DataFrame | None = None, val_tab: DataFrame | None = None) -> Series:
         typ, code, name = group_info(group)
         if typ not in ASSET_GRP:
             raise ValueError(f'Unsupported asset type [{typ}].')
-        s = pd.Series([typ, code, name, 0., 0., NAN, 0., NAN], COL_TAG)
+        s = Series([typ, code, name, 0., 0., NAN, 0., NAN], COL_TAG)
         if not (txn_tab is None or val_tab is None or txn_tab.empty):
             s.iat[COL_IA] = val_tab.iat[0, val.COL_HS] * val_tab.iat[0, val.COL_UP]
-            if pd.isna(s.iat[COL_IA]):
+            if isna(s.iat[COL_IA]):
                 s.iat[COL_IA] = 0.
             s.iat[COL_HA] = val_tab.iat[0, val.COL_HA]
             s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
             if txn_tab.iat[-1, txn.COL_HS]:
-                t = txn.Tab(pd.concat([txn_tab, pd.DataFrame([[
+                t = txn.Tab(concat([txn_tab, DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
                 ]], columns=[txn.TAG_DT, txn.TAG_SA, txn.TAG_SS])], ignore_index=True))
                 s.iat[COL_CR] = t.table().iat[-1, txn.COL_RR]
@@ -153,31 +153,31 @@ class Tab:
                 else:
                     val_tab = val.Tab(self.__db, group, False).table()
                 self.__tab.iloc[row] = self.__calc(group, g.get(KEY_TXN, None), val_tab)
-                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
+                self.__db.set(group, KEY_INF, DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
             else:
                 if online:
                     v = val.Tab(self.__db, group)
                     self.__tab.iat[row, COL_AN] = v.get_name()
                     group = v.get_group()
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
-                self.__db.set(group, KEY_INF, pd.DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
+                self.__db.set(group, KEY_INF, DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
-    def load(self, data: db, upd: bool = True) -> pd.DataFrame:
-        self.__tab = pd.DataFrame(columns=COL_TAG).astype(COL_TYP)
+    def load(self, data: db, upd: bool = True) -> DataFrame:
+        self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, df in self.__db.get(key=KEY_INF).items():
             if (df.columns != COL_TAG[COL_IA:]).any():
                 raise ValueError(f'DB error in {group}/{KEY_INF}\n{df}')
-            df = pd.concat([pd.DataFrame([group_info(group)], [0], [TAG_AT, TAG_AC, TAG_AN]), df], axis=1)
-            self.__tab = pd.concat([self.__tab, df], ignore_index=True)
+            df = concat([DataFrame([group_info(group)], [0], [TAG_AT, TAG_AC, TAG_AN]), df], axis=1)
+            self.__tab = concat([self.__tab, df], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
             self._update()
         return self.__tab.copy()
 
-    def get(self, item: int | str | None = None) -> pd.DataFrame | pd.Series:
+    def get(self, item: int | str | None = None) -> DataFrame | Series:
         if item is None:
             data = self.__tab.copy()
         elif type(item) is int:
@@ -191,7 +191,7 @@ class Tab:
         return data
 
     def add(self, typ: str, code: str) -> None:
-        tab = pd.concat([self.__tab, pd.DataFrame(
+        tab = concat([self.__tab, DataFrame(
             [[typ, code, '']], columns=[TAG_AT, TAG_AC, TAG_AN]
         )], ignore_index=True)
         self.__verify(tab)
@@ -217,9 +217,9 @@ class Tab:
             raise TypeError(f'Unsupported data type [{type(item)}].')
         return
 
-    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame:
-        self.__tab = pd.concat(
-            [self.__tab, pd.read_csv(file).iloc[:, :COL_AN]], ignore_index=True
+    def read_csv(self, file: str, upd: bool = True) -> DataFrame:
+        self.__tab = concat(
+            [self.__tab, read_csv(file).iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
             self._update()
@@ -311,7 +311,7 @@ class Mod(Tab, basMod):
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
             v = self.get().iat[index.row(), index.column()]
-            if pd.isna(v):
+            if isna(v):
                 return ''
             if type(v) is str:
                 return v
@@ -365,10 +365,10 @@ class Mod(Tab, basMod):
                         self._update(row, False)
                     except:
                         basMod.table(self, self.get())
-                        self._raise((f'DB error [{sys.exc_info()[1].args}].', {(0, row, cols, 1)}))
+                        self._raise((f'DB error [{exc_info()[1].args}].', {(0, row, cols, 1)}))
                         return
                     else:
-                        self._raise((sys.exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
+                        self._raise((exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
                 else:
                     self.setColor(FORE, COLOR_INFO[FORE], 0, row, cols, 1)
                     self.setColor(BACK, COLOR_INFO[BACK], 0, row, cols, 1)
@@ -376,11 +376,11 @@ class Mod(Tab, basMod):
         basMod.table(self, self.get())
         return
 
-    def load(self, data: db, upd: bool = True) -> pd.DataFrame | None:
+    def load(self, data: db, upd: bool = True) -> DataFrame | None:
         try:
             Tab.load(self, data, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         self.__db = data
         if upd:
@@ -396,7 +396,7 @@ class Mod(Tab, basMod):
             tab = self.get()
             rows = tab.index.size
             cols = tab.columns.size
-            args = sys.exc_info()[1].args
+            args = exc_info()[1].args
             if len(args) >= 2 and type(args[1]) is set:
                 if args[0] == DUP_ERR:
                     self.select(args[1].pop()[1])
@@ -448,17 +448,17 @@ class Mod(Tab, basMod):
             try:
                 Tab.delete(self, data)
             except:
-                self._raise(sys.exc_info()[1].args)
+                self._raise(exc_info()[1].args)
             else:
                 self.adjColor(y0=data + 1, y1=data)
         basMod.table(self, self.get())
         return
 
-    def read_csv(self, file: str, upd: bool = True) -> pd.DataFrame | None:
+    def read_csv(self, file: str, upd: bool = True) -> DataFrame | None:
         try:
             Tab.read_csv(self, file, False)
         except:
-            self._raise(sys.exc_info()[1].args)
+            self._raise(exc_info()[1].args)
             return None
         if upd:
             self.update()

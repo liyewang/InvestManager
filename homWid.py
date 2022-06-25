@@ -1,10 +1,9 @@
-from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QSlider, QLabel,
-                                QComboBox, QLineEdit, QPushButton)
-from PySide6.QtCore import Qt, Slot, QThread
+from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QVBoxLayout, QSlider,
+                                QLabel, QComboBox, QLineEdit, QPushButton, QGridLayout)
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
-from matplotlib.font_manager import FontProperties
 from db import *
 import infTab as inf
 import groTab as gro

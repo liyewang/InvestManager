@@ -1,7 +1,7 @@
-from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox, QAbstractItemView, QComboBox
+from PySide6.QtWidgets import QTableView, QApplication, QHeaderView, QWidget, QMessageBox
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QRect
-from PySide6.QtGui import QColor, QKeyEvent, QAction
-import pandas as pd
+from PySide6.QtGui import QColor
+from pandas import DataFrame, isna
 
 FORE = 0
 BACK = 1
@@ -55,7 +55,7 @@ class basView(QTableView):
     #         print(pos)
 
 class basMod(QAbstractTableModel):
-    def __init__(self, data: pd.DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
+    def __init__(self, data: DataFrame, tabView: QTableView | None = None, parent: QWidget | None = None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.error = ()
         self.__tab = data.copy()
@@ -86,7 +86,7 @@ class basMod(QAbstractTableModel):
             return None
         if role == Qt.DisplayRole or role == Qt.EditRole:
             v = self.__tab.iat[index.row(), index.column()]
-            if pd.isna(v):
+            if isna(v):
                 return ''
             return str(v)
         elif role == Qt.ForegroundRole:
@@ -163,7 +163,7 @@ class basMod(QAbstractTableModel):
                 MSG_BOX[level](None, MSG_TAG[level], str(args))
         return
 
-    def table(self, data: pd.DataFrame | None = None) -> pd.DataFrame:
+    def table(self, data: DataFrame | None = None) -> DataFrame:
         if data is not None:
             # self.beginResetModel()
             self.layoutAboutToBeChanged.emit()
@@ -284,14 +284,15 @@ class basMod(QAbstractTableModel):
 
 
 if __name__ == '__main__':
+    from pandas import to_datetime, read_csv
 
     app = QApplication()
 
-    # df = pd.read_csv('iris.csv')
-    dt = pd.to_datetime('2022-04-10', format=r'%Y/%m/%d')
-    # dt = pd.DatetimeIndex(['2022-04-11'])
-    # dt = pd.to_datetime('2022-04-10asd', errors='coerce')
-    df = pd.DataFrame(data={'Date':dt,'A':[4,3,2,1],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])
+    # df = read_csv('iris.csv')
+    dt = to_datetime('2022-04-10', format=r'%Y/%m/%d')
+    # dt = DatetimeIndex(['2022-04-11'])
+    # dt = to_datetime('2022-04-10asd', errors='coerce')
+    df = DataFrame(data={'Date':dt,'A':[4,3,2,1],'B':[1,1,0,0]}, index=[2,3,4,1], columns=['Date', 'A', 'B'])
     # df = df.fillna(0.0)
     # df = df.replace(np.float64('nan'),0.0)
 

@@ -1,8 +1,5 @@
-import os
-import pandas as pd
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QGridLayout, QMenu,
-                                QHBoxLayout, QVBoxLayout, QLabel, QTableWidget, QSlider)
-from PySide6.QtCore import Qt, Slot, QThread
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget
+from PySide6.QtCore import Slot
 from PySide6.QtGui import QKeyEvent, QAction
 from db import *
 from basTab import *
