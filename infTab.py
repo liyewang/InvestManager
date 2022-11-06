@@ -1,7 +1,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
-from pandas import concat
+from pandas import concat, read_csv
 from sys import exc_info
 from db import *
 from basTab import *
@@ -102,7 +102,7 @@ class Tab:
                     rects.add((col, row, 1, 1))
             if rects:
                 raise TypeError('String type is required.', rects)
-            if data.iat[row, COL_AT] not in ASSET_GRP:
+            if data.iat[row, COL_AT] not in CLS_ASSET:
                 raise ValueError('Unsupported asset type.', {(COL_AT, row, 1, 1)})
             if not data.iat[row, COL_AC]:
                 raise ValueError('Empty asset code.', {(COL_AC, row, 1, 1)})
@@ -116,7 +116,7 @@ class Tab:
 
     def __calc(self, group: str, txn_tab: DataFrame | None = None, val_tab: DataFrame | None = None) -> Series:
         typ, code, name = group_info(group)
-        if typ not in ASSET_GRP:
+        if typ not in CLS_ASSET:
             raise ValueError(f'Unsupported asset type [{typ}].')
         s = Series([typ, code, name, 0., 0., NAN, 0., NAN], COL_TAG)
         if not (txn_tab is None or val_tab is None or txn_tab.empty):
@@ -217,7 +217,7 @@ class Tab:
             raise TypeError(f'Unsupported data type [{type(item)}].')
         return
 
-    def read_csv(self, file: str, upd: bool = True) -> DataFrame:
+    def import_csv(self, file: str, upd: bool = True) -> DataFrame:
         self.__tab = concat(
             [self.__tab, read_csv(file).iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
@@ -332,7 +332,7 @@ class Mod(Tab, basMod):
     def update(self, data: int | str | None = None) -> None:
         if type(data) is str:
             typ, code = group_info(data)[:2]
-            if not (typ in ASSET_GRP and code):
+            if not (typ in CLS_ASSET and code):
                 self._raise(f'Group error [{data}].')
                 return
             tab = self.get()
@@ -426,7 +426,7 @@ class Mod(Tab, basMod):
     def delete(self, data: int | str | None = None) -> None:
         if type(data) is str:
             typ, code = group_info(data)[:2]
-            if not (typ in ASSET_GRP and code):
+            if not (typ in CLS_ASSET and code):
                 self._raise(f'Group error [{data}].')
                 return
             tab = self.get()
@@ -454,9 +454,9 @@ class Mod(Tab, basMod):
         basMod.table(self, self.get())
         return
 
-    def read_csv(self, file: str, upd: bool = True) -> DataFrame | None:
+    def import_csv(self, file: str, upd: bool = True) -> DataFrame | None:
         try:
-            Tab.read_csv(self, file, False)
+            Tab.import_csv(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None

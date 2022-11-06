@@ -12,27 +12,92 @@ KEY_INF = 'INF'
 KEY_TXN = 'TXN'
 KEY_VAL = 'VAL'
 
+KEYS_ASSET = {
+    KEY_INF,
+    KEY_TXN,
+    KEY_VAL,
+}
+
 KEY_GRO = 'GRO'
 KEY_YRR = 'YRR'
 KEY_QTR = 'QTR'
+KEY_DIG = 'DIG'
 
-GRP_FUND = 'FUND'
-GRP_HOME = 'HOME'
-GRP_CONF = 'CONF'
+KEYS_HOME = {
+    KEY_GRO,
+    KEY_YRR,
+    KEY_QTR,
+    KEY_DIG,
+}
 
-VALID_GRP = {
-    GRP_FUND,
+GRP_FUND_CASH = 'FundCash'
+GRP_FUND_BOND = 'FundBond'
+GRP_FUND_STOC = 'FundStock'
+GRP_FUND_CMDT = 'FundCmdty'
+
+GRP_HOME = 'Home'
+GRP_CONF = 'Conf'
+
+CLS_VALID = {
+    GRP_FUND_CASH,
+    GRP_FUND_BOND,
+    GRP_FUND_STOC,
+    GRP_FUND_CMDT,
     GRP_HOME,
     GRP_CONF,
 }
 
-ASSET_GRP = {
-    GRP_FUND,
+CLS_ASSET = {
+    GRP_FUND_CASH,
+    GRP_FUND_BOND,
+    GRP_FUND_STOC,
+    GRP_FUND_CMDT,
 }
+
+DICT_ASSET = {
+    'Cash Fund':        GRP_FUND_CASH,
+    'Bond Fund':        GRP_FUND_BOND,
+    'Stock Fund':       GRP_FUND_STOC,
+    'Commodity Fund':   GRP_FUND_CMDT,
+}
+
+CLS_CASH = {
+    GRP_FUND_CASH,
+}
+
+CLS_FXIC = {
+    GRP_FUND_BOND,
+}
+
+CLS_EQUT = {
+    GRP_FUND_STOC,
+}
+
+CLS_CMDT = {
+    GRP_FUND_CMDT,
+}
+
+CLS_FUND = {
+    GRP_FUND_CASH,
+    GRP_FUND_BOND,
+    GRP_FUND_STOC,
+    GRP_FUND_CMDT,
+}
+
+DICT_CLS = {
+    'All':          CLS_ASSET,
+    'Cash':         CLS_CASH,
+    'Fixed Income': CLS_FXIC,
+    'Equities':     CLS_EQUT,
+    'Commodities':  CLS_CMDT,
+    # 'Fund':         CLS_FUND,
+}
+
+TAG_CLS_DEF = 'All'
 
 GRP_SEP = '_'
 
-def group_info(group: str) -> tuple:
+def group_info(group: str) -> tuple[str, str, str]:
     data = group.split(GRP_SEP)
     return data[0], data[1], bytes.fromhex(data[2]).decode()
 
@@ -49,7 +114,7 @@ class db:
         if self.__path:
             with HDFStore(path) as hdf:
                 self.__db = {
-                    group:{
+                    str(group):{
                         key:hdf.get(f'{group}/{key}')
                         for key in next(hdf.walk(f'/{group}'))[2]
                     }
@@ -69,7 +134,7 @@ class db:
             for k, v in self.__db.items():
                 if type(v) is dict and key in v:
                     data[k] = v[key].copy()
-        elif group in ASSET_GRP:
+        elif group in CLS_ASSET:
             for k, v in self.__db.items():
                 if group_info(k)[0] == group:
                     if key is None:
@@ -88,7 +153,7 @@ class db:
         return data
 
     def set(self, group: str, key: str, data: DataFrame | Series) -> None:
-        if group_info(group)[0] not in VALID_GRP:
+        if group_info(group)[0] not in CLS_VALID:
             raise ValueError(f'Unsupported group type [{type(group)}].')
         if not (type(data) is DataFrame or type(data) is Series):
             raise TypeError(f'Unsupported data type [{type(data)}].')
@@ -116,9 +181,9 @@ class db:
         return
 
     def move(self, src: str, dst: str) -> None:
-        if group_info(src)[0] not in VALID_GRP:
+        if group_info(src)[0] not in CLS_VALID:
             raise ValueError(f'Unsupported group type [{type(src)}].')
-        if group_info(dst)[0] not in VALID_GRP:
+        if group_info(dst)[0] not in CLS_VALID:
             raise ValueError(f'Unsupported group type [{type(dst)}].')
         if src not in self.__db:
             raise KeyError(f'Source group [{src}] does not exist.')
@@ -146,7 +211,7 @@ if __name__ == '__main__':
     import txnTab as txn
     import valTab as val
     renew = True
-    renew = False
+    # renew = False
     if renew:
         os_remove(DB_PATH)
     d = db(DB_PATH)
@@ -157,20 +222,20 @@ if __name__ == '__main__':
     # d.remove('FUND_000001')
     if renew:
         t = txn.Tab()
-        t.read_csv(os_path.join(os_path.dirname(os_path.abspath(__file__)), 'txn.csv'))
-        v = val.Tab(t.table(), 'FUND_519697_')
-        d.set('FUND_519697_', KEY_INF, DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
-        d.set('FUND_519697_', KEY_TXN, t.table())
-        # d.set('FUND_519697_', KEY_VAL, v.table())
+        t.import_csv(os_path.join(os_path.dirname(os_path.abspath(__file__)), 'txn.csv'))
+        v = val.Tab(t.table(), 'FundStock_519697_')
+        d.set('FundStock_519697_', KEY_INF, DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
+        d.set('FundStock_519697_', KEY_TXN, t.table())
+        # d.set('FundStock_519697_', KEY_VAL, v.table())
         # t = txn.Tab()
         # v = val.Tab()
-        # d.set('FUND_519069_', KEY_INF, DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
-        # d.set('FUND_519069_', KEY_TXN, t.table())
-        # d.set('FUND_519069_', KEY_VAL, v.table())
-        # print(d.get('FUND_519697_', KEY_INF))
-        # print(d.get('FUND_519069_', KEY_INF))
-        # print(d.get('FUND_519069_', KEY_TXN))
-        # print(d.get('FUND_519069_', KEY_VAL))
+        # d.set('FundStock_519069_', KEY_INF, DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
+        # d.set('FundStock_519069_', KEY_TXN, t.table())
+        # d.set('FundStock_519069_', KEY_VAL, v.table())
+        # print(d.get('FundStock_519697_', KEY_INF))
+        # print(d.get('FundStock_519069_', KEY_INF))
+        # print(d.get('FundStock_519069_', KEY_TXN))
+        # print(d.get('FundStock_519069_', KEY_VAL))
         d.save()
     print(d)
     # txns = d.get(key=KEY_TXN)

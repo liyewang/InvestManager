@@ -1,7 +1,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent
-from pandas import Timestamp, concat, to_numeric
+from pandas import Timestamp, concat, to_numeric, read_csv
 from sys import exc_info
 from db import *
 from basTab import *
@@ -338,7 +338,7 @@ class Tab:
             self.__calcTab(data)
         return self.__avg
 
-    def read_csv(self, file: str, update: bool = True) -> DataFrame:
+    def import_csv(self, file: str, update: bool = True) -> DataFrame:
         tab = read_csv(file).astype(COL_TYP)
         if update:
             self.__calcTab(tab)
@@ -510,9 +510,9 @@ class Mod(Tab, basMod):
             return self.__tab.copy()
         return Tab.table(self)
 
-    def read_csv(self, file: str) -> DataFrame | None:
+    def import_csv(self, file: str) -> DataFrame | None:
         try:
-            tab = Tab.read_csv(self, file, False)
+            tab = Tab.import_csv(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None

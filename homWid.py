@@ -4,18 +4,21 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
+from pandas import concat
 from db import *
 import infTab as inf
 import groTab as gro
 
 TAG_GV = 'Gross Value'
 TAG_AP = gro.TAG_AP
+TAG_PT = 'Proportion'
 TAG_AR = 'Annual Rate'
 TAG_QR = 'Quart. Rate'
 
 PLT_TAG = [
     TAG_GV,
     TAG_AP,
+    TAG_PT,
     TAG_AR,
     TAG_QR,
 ]
@@ -54,6 +57,11 @@ class Wid(QWidget):
         self.__plot_start_title = QLabel()
         self.__plot_range_title = QLabel()
 
+        self.__cls_opt = QComboBox()
+        self.__cls_opt.addItems(DICT_CLS.keys())
+        self.__cls_opt.currentTextChanged.connect(self.__cls_opt_upd)
+        self.__cls_opt_cfg(self.__cls_opt.currentText())
+
         self.__plt_opt = QComboBox()
         self.__plt_opt.addItems(PLT_TAG)
         self.__plt_opt.currentTextChanged.connect(self.__plot_opt_upd)
@@ -71,7 +79,7 @@ class Wid(QWidget):
         plot_range_layout.addWidget(self.__plot_range_max)
 
         self.__assetType = QComboBox()
-        self.__assetType.addItems(ASSET_GRP)
+        self.__assetType.addItems(DICT_ASSET.keys())
         self.__assetCode = QLineEdit()
         self.__assetCode.setPlaceholderText(inf.TAG_AC)
         self.__assetCode.returnPressed.connect(self.__assAdd)
@@ -107,13 +115,24 @@ class Wid(QWidget):
         llayout.addLayout(ctrl_layout, 1)
 
         rlayout = QVBoxLayout()
+        rlayout.addWidget(self.__cls_opt, 1)
         rlayout.addWidget(self.__plt_opt, 1)
-        rlayout.addWidget(self.__gro_mod.view, 99)
+        rlayout.addWidget(self.__gro_mod.view, 98)
 
         layout = QHBoxLayout()
         layout.addLayout(llayout, 7)
         layout.addLayout(rlayout, 3)
         self.setLayout(layout)
+        return
+
+    @Slot()
+    def __cls_opt_upd(self, opt: str = TAG_CLS_DEF) -> None:
+        self.__cls_opt_cfg(opt)
+        self.__plot_upd()
+        return
+
+    def __cls_opt_cfg(self, opt: str = TAG_CLS_DEF) -> None:
+        self.__gro_mod.setClass(opt)
         return
 
     @Slot()
@@ -131,8 +150,13 @@ class Wid(QWidget):
         elif opt == TAG_AP:
             self.__plot_size = self.__tab.index.size
             self.__range_min_opt = 20
-            self.__ax2.set_axis_on()
+            self.__ax2.set_axis_off()
             self.__plot = self.__plot_ap
+        elif opt == TAG_PT:
+            self.__plot_size = self.__gro_mod.value().index.size
+            self.__range_min_opt = 20
+            self.__ax2.set_axis_off()
+            self.__plot = self.__plot_pt
         elif opt == TAG_AR:
             self.__plot_size = self.__gro_mod.yrRate.index.size
             self.__range_min_opt = 5
@@ -206,73 +230,113 @@ class Wid(QWidget):
         return
 
     def __plot_gv(self) -> None:
+        self.__ax.clear()
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
-            self.__ax.clear()
             date = self.__date[head:tail]
             ha = self.__tab.iloc[head:tail, gro.COL_HA]
             ia = self.__tab.iloc[head:tail, gro.COL_IA]
-            self.__ax.plot(
-                date, ha,
-                date, ia, 'm-.',
-                lw=0.5, ms=3)
-            self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
-            self.__ax.set(xlabel='Date', ylabel='Amount')
-            self.__ax.margins(x=0)
-            if ha.iat[0]:
-                self.__ax2.set_ylim((self.__ax.set_ylim() / ha.iat[0] - 1) * 100)
-            else:
-                self.__ax2.set_ylim(0, 100)
-            self.__ax2.set_ylabel('Percent (%)')
-            self.__ax.set_title(self.__plot_title)
+        else:
+            date = []
+            ha = []
+            ia = []
+        self.__ax.plot(
+            date, ha,
+            date, ia, 'm-.',
+            lw=0.5, ms=3)
+        self.__ax.legend([gro.TAG_HA, gro.TAG_IA])
+        self.__ax.set(xlabel='Date', ylabel='Amount')
+        self.__ax.margins(x=0)
+        if len(ha) > 0 and ha.iat[0]:
+            self.__ax2.set_ylim((self.__ax.set_ylim() / ha.iat[0] - 1) * 100)
+        else:
+            self.__ax2.set_ylim(0, 100)
+        self.__ax2.set_ylabel('Percent (%)')
+        self.__ax.set_title(self.__plot_title)
         self.__ax.grid(True)
         self.__canvas.draw()
         return
 
     def __plot_ap(self) -> None:
+        self.__ax.clear()
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
-            self.__ax.clear()
             date = self.__date[head:tail]
             ap = self.__tab.iloc[head:tail, gro.COL_AP]
-            self.__ax.plot(date, ap, lw=0.5, ms=3)
-            self.__ax.set(xlabel='Date', ylabel='Amount')
-            self.__ax.margins(x=0)
-            self.__ax.set_title(self.__plot_title)
+        else:
+            date = []
+            ap = []
+        self.__ax.plot(date, ap, lw=0.5, ms=3)
+        self.__ax.set(xlabel='Date', ylabel='Amount')
+        self.__ax.margins(x=0)
+        self.__ax.set_title(self.__plot_title)
+        self.__ax.grid(True)
+        self.__canvas.draw()
+        return
+
+    def __plot_pt(self) -> None:
+        self.__ax.clear()
+        head = self.__start - 1
+        tail = head + self.__range
+        if tail <= self.__gro_mod.value().index.size and head >= 0 and tail - head > 0:
+            date = self.__gro_mod.value()[gro.TAG_DT].sort_values().iloc[head:tail]
+            ha = []
+            for cls in DICT_CLS.keys():
+                tab = self.__gro_mod.value(cls).sort_values(gro.TAG_DT).iloc[head:tail]
+                tab.index = tab[gro.TAG_DT]
+                ha.append(tab[gro.TAG_HA])
+            ha = concat(ha, axis=1, sort=True).fillna(0.).to_numpy()
+            ha[ha[:, 0] == 0, 0] = 1e-99
+            for c in range(1, len(DICT_CLS)):
+                ha[:, c] /= ha[:, 0]
+            ha = ha[:,1:] * 100
+        else:
+            date = []
+            ha = []
+        self.__ax.plot(date, ha, lw=2)
+        self.__ax.legend(list(DICT_CLS.keys())[1:])
+        self.__ax.set(xlabel='Date', ylabel='Proportion (%)')
+        self.__ax.set_title(self.__plot_title)
         self.__ax.grid(True)
         self.__canvas.draw()
         return
 
     def __plot_ar(self) -> None:
+        self.__ax.clear()
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
-            self.__ax.clear()
-            ar = self.__gro_mod.yrRate.iloc[head:tail].fillna(0.)
+            ar = self.__gro_mod.yrRate.iloc[head:tail].fillna(0.) * 100
             yr = [f'{ts.year}' for ts in ar.index]
-            bc = self.__ax.bar(yr, ar, width=0.5)
-            self.__ax.margins(y=0.1)
-            self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
-            self.__ax.set_title(self.__plot_title)
-            self.__ax.set(xlabel='Year', ylabel='Rate (%)')
+        else:
+            ar = []
+            yr = []
+        bc = self.__ax.bar(yr, ar, width=0.5)
+        self.__ax.margins(y=0.1)
+        self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
+        self.__ax.set_title(self.__plot_title)
+        self.__ax.set(xlabel='Year', ylabel='Rate (%)')
         self.__ax.grid(False)
         self.__canvas.draw()
         return
 
     def __plot_qt(self) -> None:
+        self.__ax.clear()
         head = self.__start - 1
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
-            self.__ax.clear()
-            ar = self.__gro_mod.qtRate.iloc[head:tail].fillna(0.)
+            ar = self.__gro_mod.qtRate.iloc[head:tail].fillna(0.) * 100
             qt = [f'{ts.year}-{ts.quarter}' for ts in ar.index]
-            bc = self.__ax.bar(qt, ar, width=0.5)
-            self.__ax.margins(y=0.1)
-            self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
-            self.__ax.set(xlabel='Quarter', ylabel='Rate (%)')
-            self.__ax.set_title(self.__plot_title)
+        else:
+            ar = []
+            qt = []
+        bc = self.__ax.bar(qt, ar, width=0.5)
+        self.__ax.margins(y=0.1)
+        self.__ax.bar_label(bc, fmt='%.2f%%', padding=1)
+        self.__ax.set(xlabel='Quarter', ylabel='Rate (%)')
+        self.__ax.set_title(self.__plot_title)
         self.__ax.grid(False)
         self.__canvas.draw()
         return
@@ -286,9 +350,9 @@ class Wid(QWidget):
     @Slot()
     def __assAdd(self) -> None:
         print('Add')
-        print(self.__assetType.currentText())
+        print(DICT_ASSET[self.__assetType.currentText()])
         print(self.__assetCode.text())
-        self.__inf_mod.add(self.__assetType.currentText(), self.__assetCode.text())
+        self.__inf_mod.add(DICT_ASSET[self.__assetType.currentText()], self.__assetCode.text())
         self.__assetCode.clear()
         return
 

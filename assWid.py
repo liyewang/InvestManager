@@ -319,6 +319,4 @@ if __name__ == '__main__':
     app = QApplication()
     a = Wid(d, group)
     a.show()
-    # v.table(group)
-    # t.read_csv(R'C:\Users\51730\Desktop\dat.csv')
     app.exec()

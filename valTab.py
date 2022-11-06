@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal
 from requests import get as req_get
-from pandas import Timestamp, concat, read_xml
+from pandas import Timestamp, concat, read_xml, read_csv
 from sys import exc_info
 from db import *
 from basTab import *
@@ -134,7 +134,7 @@ class Tab:
             if not (self.__grp is None or self.__grp == data):
                 raise ValueError('Loaded group can only be changed by load function.')
             typ, code, name = group_info(data)
-            if typ == GRP_FUND:
+            if typ in CLS_FUND:
                 try:
                     df = read_xml(req_get(
                         f'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode={code}',
@@ -226,7 +226,7 @@ class Tab:
             self.__update(data, txn_tab)
         return self.__tab.copy()
 
-    def read_csv(self, file: str, upd: bool = True) -> DataFrame:
+    def import_csv(self, file: str, upd: bool = True) -> DataFrame:
         tab = read_csv(file).astype(COL_TYP)
         if upd:
             self.__update(tab)
@@ -310,10 +310,10 @@ class Mod(Tab, basMod):
                 basMod.table(self, Tab.table(self))
         return Tab.table(self)
     
-    def read_csv(self, file: str) -> DataFrame | None:
+    def import_csv(self, file: str) -> DataFrame | None:
         self.error = ()
         try:
-            tab = Tab.read_csv(self, file, False)
+            tab = Tab.import_csv(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None
