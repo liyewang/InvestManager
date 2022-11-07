@@ -277,10 +277,10 @@ class Tab:
         asset_tags = []
         for asset_tag, asset_cls in DICT_CLS.items():
             asset_tags.append(asset_tag)
-            if asset_tag not in self.__dict:
-                start = TS_ORI
-            else:
+            if asset_tag in self.__dict:
                 start = TS_END
+            else:
+                start = TS_ORI
             vals = {}
             m = sha512()
             for grp in asset_cls:
@@ -298,14 +298,16 @@ class Tab:
                         m.update(df.to_string().encode())
                         if asset_tag in self.__dict:
                             if group in self.__vals[asset_tag]:
+                                val_new = df
                                 val_old = self.__vals[asset_tag][group]
                                 assert type(val_old) is DataFrame
-                                if not df.equals(val_old):
-                                    i = min(df.index.size, val_old.index.size)
-                                    val_new = df.iloc[:i]
-                                    val_old = val_old.iloc[:i]
-                                    v = val_new == val_old
-                                    if v.any():
+                                if not val_new.equals(val_old):
+                                    if val_new.index.size > val_old.index.size:
+                                        val_new = val_new.iloc[val_new.index.size - val_old.index.size:]
+                                    else:
+                                        val_old = val_old.iloc[val_old.index.size - val_new.index.size:]
+                                    v = (val_new != val_old).any(axis=1)
+                                    if any(v):
                                         i = v[v].index[-1]
                                         start = min(val_new.iat[i, val.COL_DT], val_old.iat[i, val.COL_DT])
                                     else:
