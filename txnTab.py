@@ -1,7 +1,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent
-from pandas import Timestamp, concat, to_numeric, read_csv
+from pandas import Timestamp, concat, to_numeric, to_datetime, read_csv
 from sys import exc_info
 from db import *
 from basTab import *

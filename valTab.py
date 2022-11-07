@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal
 from requests import get as req_get
-from pandas import Timestamp, concat, read_xml, read_csv
+from pandas import Timestamp, concat, to_datetime, read_csv
 from sys import exc_info
 from db import *
 from basTab import *
@@ -136,21 +136,17 @@ class Tab:
             typ, code, name = group_info(data)
             if typ in CLS_FUND:
                 try:
-                    df = read_xml(req_get(
-                        f'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode={code}',
-                        headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
-                    ).text)
-                    code_new = f'{df.iat[0, 0]:06.0f}'
-                    if code_new != code:
-                        raise ValueError(f'Asset code [{code_new}] mismatches the group code [{code}].')
+                    data = req_get(f'https://api.doctorxiong.club/v1/fund/detail?code={code}').json()
+                    code_new = data['data']['code']
+                    assert code_new == code, f'Asset code [{code_new}] mismatches the group code [{code}].'
                     self.__code = code_new
-                    self.__name = df.iat[1, 1]
-                    DATE = 'fld_enddate'
-                    self.__tab = df.iloc[2:, 2:5].astype({DATE:'datetime64[ns]'}).drop_duplicates(DATE) \
-                        .sort_values(DATE, ascending=False, ignore_index=True)
-                    self.__tab = concat([self.__tab, DataFrame(
-                        [[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))], axis=1)
-                    self.__tab.columns = COL_TAG
+                    self.__name = data['data']['name']
+                    unv = DataFrame(data['data']['netWorthData']).iloc[:, :2]
+                    tnv = DataFrame(data['data']['totalNetWorthData'])
+                    assert all(unv[0] == tnv[0])
+                    tab = concat([unv, tnv[1], DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
+                    tab.columns = COL_TAG
+                    self.__tab = tab.astype(COL_TYP).drop_duplicates(TAG_DT).sort_values(TAG_DT, ascending=False, ignore_index=True)
                 except:
                     raise RuntimeError(f'Fail to load Net Value data: {exc_info()[1].args}')
             else:
