@@ -294,7 +294,7 @@ class Tab:
         self.__avg = _avg
         return
 
-    def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
+    def config(self, MaxCount=4096, dRate=0.1, MaxAmtResErr=1e-10) -> None:
         MaxCount = to_numeric(MaxCount, errors='coerce')
         if MaxCount <= 0:
             raise ValueError('MaxCount must be positive')

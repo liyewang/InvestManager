@@ -1,5 +1,5 @@
 from os import path as os_path
-from pandas import DataFrame, Series, HDFStore
+from pandas import HDFStore, DataFrame, Series, Timestamp
 from copy import deepcopy
 
 DB_PATH = os_path.join(os_path.dirname(os_path.abspath(__file__)), 'db.h5')
@@ -7,6 +7,9 @@ DB_PATH = os_path.join(os_path.dirname(os_path.abspath(__file__)), 'db.h5')
 # DB_PATH = os_path.join(os_path.dirname(os_path.abspath(__file__)), f'{__file__.split(".")[0]}.h5')
 
 NAN = float('nan')
+
+TS_ORI = Timestamp(-2**63+1)
+TS_END = Timestamp(2**63-1)
 
 KEY_INF = 'INF'
 KEY_TXN = 'TXN'
@@ -87,7 +90,7 @@ CLS_FUND = {
 DICT_CLS = {
     'All':          CLS_ASSET,
     'Cash':         CLS_CASH,
-    'Fixed Income': CLS_FXIC,
+    'FixedIncome':  CLS_FXIC,
     'Equities':     CLS_EQUT,
     'Commodities':  CLS_CMDT,
     # 'Fund':         CLS_FUND,
@@ -187,8 +190,6 @@ class db:
             raise ValueError(f'Unsupported group type [{type(dst)}].')
         if src not in self.__db:
             raise KeyError(f'Source group [{src}] does not exist.')
-        if dst in self.__db:
-            raise KeyError(f'Destination group [{dst}] already exists.')
         self.__db[dst] = self.__db[src]
         del self.__db[src]
         self.__changed = True
@@ -219,7 +220,8 @@ if __name__ == '__main__':
     #     for a in hdf.walk('/FUND_519697'):
     #         print(a)
     # d.remove()
-    # d.remove('FUND_000001')
+    # d.remove('Home_Fixed Income_')
+    # d.save()
     if renew:
         t = txn.Tab()
         t.import_csv(os_path.join(os_path.dirname(os_path.abspath(__file__)), 'txn.csv'))

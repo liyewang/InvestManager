@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal
-from requests import get as req_get
+from requests import get
 from pandas import Timestamp, concat, to_datetime, read_csv
 from sys import exc_info
 from db import *
@@ -136,13 +136,13 @@ class Tab:
             typ, code, name = group_info(data)
             if typ in CLS_FUND:
                 try:
-                    data = req_get(f'https://api.doctorxiong.club/v1/fund/detail?code={code}').json()
-                    code_new = data['data']['code']
+                    info = get(f'https://api.doctorxiong.club/v1/fund/detail?code={code}').json()
+                    code_new = info['data']['code']
                     assert code_new == code, f'Asset code [{code_new}] mismatches the group code [{code}].'
                     self.__code = code_new
-                    self.__name = data['data']['name']
-                    unv = DataFrame(data['data']['netWorthData']).iloc[:, :2]
-                    tnv = DataFrame(data['data']['totalNetWorthData'])
+                    self.__name = info['data']['name']
+                    unv = DataFrame(info['data']['netWorthData']).iloc[:, :2]
+                    tnv = DataFrame(info['data']['totalNetWorthData'])
                     assert all(unv[0] == tnv[0])
                     tab = concat([unv, tnv[1], DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
                     tab.columns = COL_TAG
@@ -323,7 +323,7 @@ class Mod(Tab, basMod):
 
 if __name__ == '__main__':
     d = db(DB_PATH)
-    group = list(d.get(key=KEY_INF).keys())[2]
+    group = list(d.get(key=KEY_INF).keys())[0]
 
     app = QApplication()
     v = Mod(d, group)

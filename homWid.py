@@ -26,7 +26,6 @@ PLT_TAG = [
 class Wid(QWidget):
     def __init__(self, data: db, open_func = None, upd: bool = True) -> None:
         super().__init__()
-        # self.setMinimumSize(1366, 768)
         self.__inf_mod = inf.Mod(data, upd)
         self.__gro_mod = gro.Mod(data, upd)
         if open_func is not None:
@@ -153,7 +152,7 @@ class Wid(QWidget):
             self.__ax2.set_axis_off()
             self.__plot = self.__plot_ap
         elif opt == TAG_PT:
-            self.__plot_size = self.__gro_mod.value().index.size
+            self.__plot_size = self.__tab.index.size
             self.__range_min_opt = 20
             self.__ax2.set_axis_off()
             self.__plot = self.__plot_pt
@@ -168,8 +167,10 @@ class Wid(QWidget):
             self.__ax2.set_axis_off()
             self.__plot = self.__plot_qt
         self.__plot_title = opt
-        self.__plot_start_cfg(self.__plot_start.value())
-        self.__plot_range_cfg(self.__plot_range.value())
+        self.__plot_start_cfg()
+        self.__plot_range_cfg()
+        self.__plot_start.setValue(self.__start_min)
+        self.__plot_range.setValue(self.__range_max)
         return
 
     @Slot()
@@ -280,14 +281,16 @@ class Wid(QWidget):
         self.__ax.clear()
         head = self.__start - 1
         tail = head + self.__range
-        if tail <= self.__gro_mod.value().index.size and head >= 0 and tail - head > 0:
-            date = self.__gro_mod.value()[gro.TAG_DT].sort_values().iloc[head:tail]
+        if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
+            date = self.__date[head:tail]
             ha = []
             for cls in DICT_CLS.keys():
-                tab = self.__gro_mod.value(cls).sort_values(gro.TAG_DT).iloc[head:tail]
+                tab = self.__gro_mod.value(cls)
                 tab.index = tab[gro.TAG_DT]
                 ha.append(tab[gro.TAG_HA])
-            ha = concat(ha, axis=1, sort=True).fillna(0.).to_numpy()
+            ha = concat(ha, axis=1, sort=True)
+            ha = ha[(ha.index >= date.iat[0]) & (ha.index <= date.iat[-1])]
+            ha = ha.fillna(0.).to_numpy()
             ha[ha[:, 0] == 0, 0] = 1e-99
             for c in range(1, len(DICT_CLS)):
                 ha[:, c] /= ha[:, 0]
@@ -343,7 +346,7 @@ class Wid(QWidget):
 
     def __plot_upd(self) -> None:
         self.__tab = self.__gro_mod.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, gro.COL_DT]
+        self.__date = self.__tab[gro.TAG_DT]
         self.__plot_opt_upd(self.__plt_opt.currentText())
         return
 

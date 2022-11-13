@@ -1,6 +1,6 @@
 from pandas import Timestamp, concat, to_numeric
 from hashlib import sha512
-from sys import exc_info
+from sys import exc_info, byteorder
 from db import *
 from basTab import *
 import txnTab as txn
@@ -34,9 +34,6 @@ COL_TYP = {
     TAG_GR:'float64',
 }
 
-TS_ORI = Timestamp(-2**63+1)
-TS_END = Timestamp(2**63-1)
-
 class Tab:
     def __init__(self, data: db | None = None, upd: bool = True) -> None:
         self.__nul = {KEY_GRO: DataFrame(columns=COL_TAG).astype(COL_TYP),
@@ -45,9 +42,9 @@ class Tab:
                         KEY_DIG: Series(dtype='int64')}
         self.__dict = {}
         self.__vals = {}
-        for asset_tag in DICT_CLS.keys():
-            self.__dict[asset_tag] = self.__nul
-            self.__vals[asset_tag] = {}
+        for cTag in DICT_CLS.keys():
+            self.__dict[cTag] = self.__nul
+            self.__vals[cTag] = {}
         self.__cls = TAG_CLS_DEF
         self.config()
         if data is None:
@@ -61,50 +58,57 @@ class Tab:
         assert type(tab) is DataFrame
         return tab.to_string()
 
-    def avgRate(self, start: Timestamp | None = None, end: Timestamp | None = None, Rate: float = 0.) -> float:
+    def avgRate(
+        self,
+        Cls: set[str] = CLS_ASSET,
+        Start: Timestamp | None = None,
+        End: Timestamp | None = None,
+        Rate: float = 0.
+    ) -> float:
         dfs = []
         AmtMats = []
-        for group, df in self.__db.get(key=KEY_TXN).items():
-            if df is None:
-                continue
-            assert type(df) is DataFrame
-            if (df.columns != txn.COL_TAG).any():
-                raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
-            df = df.fillna(0.)
-            if start is None:
-                _start = df.iat[0, txn.COL_DT]
-            else:
-                _start = start
-            if end is None:
-                _end = df.iat[-1, txn.COL_DT]
-            else:
-                _end = end
-            if _start >= _end:
-                continue
-            head = df[txn.TAG_DT] >= _start
-            tail = df[txn.TAG_DT] <= _end
-            df = df[(head & tail)]
-            val_tab = self.__db.get(group, KEY_VAL)
-            if val_tab is None:
-                continue
-            v = val_tab[val.TAG_DT] < _start
-            if v.any() and not v.all():
-                p = val_tab[v].iloc[0]
-                s = val_tab[~v].iloc[-1]
-                if p.iat[val.COL_HS]:
-                    df = concat([DataFrame([[
-                        s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UP], p.iat[val.COL_HS], 0., 0., 0., 0., 0.
-                    ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
-            v = val_tab[val.TAG_DT] <= _end
-            if v.any():
-                v = val_tab[v].iloc[0]
-                if v.iat[val.COL_HS]:
-                    df = concat([df, DataFrame([[
-                        v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0.
-                    ]], columns=txn.COL_TAG)], ignore_index=True).astype(txn.COL_TYP)
-            if df.index.size:
-                dfs.append(df)
-                AmtMats.append(txn.getAmtMat(df))
+        for grp in Cls:
+            for group, df in self.__db.get(grp, KEY_TXN).items():
+                if df is None:
+                    continue
+                assert type(df) is DataFrame
+                if (df.columns != txn.COL_TAG).any():
+                    raise ValueError(f'DB error in {group}/{KEY_TXN}\n{df}')
+                df = df.fillna(0.)
+                if Start is None:
+                    _start = df.iat[0, txn.COL_DT]
+                else:
+                    _start = Start
+                if End is None:
+                    _end = df.iat[-1, txn.COL_DT]
+                else:
+                    _end = End
+                if _start >= _end:
+                    continue
+                head = df[txn.TAG_DT] >= _start
+                tail = df[txn.TAG_DT] <= _end
+                df = df[(head & tail)]
+                val_tab = self.__db.get(group, KEY_VAL)
+                if val_tab is None:
+                    continue
+                v = val_tab[val.TAG_DT] < _start
+                if v.any() and not v.all():
+                    p = val_tab[v].iloc[0]
+                    s = val_tab[~v].iloc[-1]
+                    if p.iat[val.COL_HS]:
+                        df = concat([DataFrame([[
+                            s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UV], p.iat[val.COL_HS], 0., 0., 0., 0., 0.
+                        ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
+                v = val_tab[val.TAG_DT] <= _end
+                if v.any():
+                    v = val_tab[v].iloc[0]
+                    if v.iat[val.COL_HS]:
+                        df = concat([df, DataFrame([[
+                            v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0.
+                        ]], columns=txn.COL_TAG)], ignore_index=True).astype(txn.COL_TYP)
+                if df.index.size:
+                    dfs.append(df)
+                    AmtMats.append(txn.getAmtMat(df))
         if not dfs:
             return NAN
         elif isna(Rate):
@@ -129,7 +133,7 @@ class Tab:
             raise RuntimeError(f'Cannot find the Average Rate of Return in {self.__MaxCount} rounds.')
         return Rate
 
-    def __calcTab(self, Tab: DataFrame, Vals: dict, Start: Timestamp) -> DataFrame:
+    def __calcTab(self, Cls: set[str], Tab: DataFrame, Vals: dict, Start: Timestamp) -> DataFrame:
         if len(Vals) == 0:
             return DataFrame(columns=COL_TAG).astype(COL_TYP)
         dates = set()
@@ -188,102 +192,91 @@ class Tab:
             AccuAmt = Amt + HoldAmt - IvstAmt
             if _val[val.TAG_HS].any():
                 if date in _tab[TAG_DT].values:
-                    Rate = self.avgRate(end=date, Rate=Rate)
+                    Rate = self.avgRate(Cls, End=date, Rate=Rate)
                 else:
-                    Rate = self.avgRate(end=date)
+                    Rate = self.avgRate(Cls, End=date)
             __tab.iloc[idx] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         return __tab.sort_index(ascending=False, ignore_index=True)
 
-    def __calcRate(self, Tab: DataFrame, YrR: Series, QtR: Series, Start: Timestamp) -> tuple[Series, Series]:
-        start = Start.replace(month=1, day=1)
-        if start <= Tab.iat[-1, COL_DT]:
-            ts0 = Tab.iat[-1, COL_DT]
-        else:
-            ts0 = start
+    def __calcRate(
+        self,
+        Cls: set[str],
+        Tab: DataFrame,
+        YrR: Series,
+        QtR: Series,
+        Start: Timestamp = TS_ORI
+    ) -> tuple[Series, Series]:
+        def ts2qt(ts0: Timestamp, ts1: Timestamp) -> tuple[int, int, int, int]:
+            yr0 = ts0.year
+            yr1 = ts1.year
+            if ts0.day_of_year % 91 < 31:
+                qt0 = ts0.quarter
+            else:
+                qt0 = ts0.quarter + 1
+                if qt0 > 4:
+                    qt0 = 1
+                    yr0 += 1
+            if ts1.day_of_year % 91 > 60:
+                qt1 = ts1.quarter
+            else:
+                qt1 = ts1.quarter - 1
+                if qt1 < 1:
+                    qt1 = 4
+                    yr1 -= 1
+            return yr0, qt0, yr1, qt1
+        def qt2ts(yr: int, qt: int) -> tuple[Timestamp, Timestamp]:
+            sdate = Timestamp(yr, qt * 3 - 2, 1)
+            if qt == 1 or qt == 4:
+                edate = Timestamp(yr, qt * 3, 31)
+            else:
+                edate = Timestamp(yr, qt * 3, 30)
+            return sdate, edate
+        ts0 = Tab.iat[-1, COL_DT]
         ts1 = Tab.iat[0, COL_DT]
-        assert type(ts0) is Timestamp
-        assert type(ts1) is Timestamp
-        yr = ts0.year
-        yr1 = ts1.year
-        if ts0.day_of_year % 91 < 31:
-            qt = ts0.quarter
-        else:
-            qt = ts0.quarter + 1
+        yr0, qt0, yr1, qt1 = ts2qt(ts0, ts1)
+        sdate = qt2ts(yr0, qt0)[0]
+        edate = qt2ts(yr1, qt1)[1]
+        yrr = {t:r for t, r in YrR.to_dict().items() if t >= sdate and t <= edate}
+        qtr = {t:r for t, r in QtR.to_dict().items() if t >= sdate and t <= edate}
+        start = Start.replace(month=1, day=1)
+        if start > ts0:
+            ts0 = start
+        yr0, qt0, yr1, qt1 = ts2qt(ts0, ts1)
+        yr = yr0
+        qt = qt0
+        while yr < yr1 or (yr == yr1 and qt <= qt1):
+            sdate, edate = qt2ts(yr, qt)
+            qt += 1
             if qt > 4:
                 qt = 1
                 yr += 1
-        if ts1.day_of_year % 91 > 60:
-            qt1 = ts1.quarter
-        else:
-            qt1 = ts1.quarter - 1
-            if qt1 < 1:
-                qt1 = 4
-                yr1 -= 1
-        yrr = []
-        yri = []
-        qtr = []
-        qti = []
-        yr_start = False
-        while yr < yr1 or (yr == yr1 and qt <= qt1):
-            if qt == 1 or qt == 5:
-                ts = Timestamp(yr, 3, 31)
-                v = QtR.index == ts
-                if v.any():
-                    qtr.append(self.avgRate(Timestamp(yr, 1, 1), ts, QtR[v].iat[0]))
-                else:
-                    qtr.append(self.avgRate(Timestamp(yr, 1, 1), ts))
-                qti.append(ts)
-                yr_start = True
-                qt = 2
-            elif qt == 2:
-                ts = Timestamp(yr, 6, 30)
-                v = QtR.index == ts
-                if v.any():
-                    qtr.append(self.avgRate(Timestamp(yr, 4, 1), ts, QtR[v].iat[0]))
-                else:
-                    qtr.append(self.avgRate(Timestamp(yr, 4, 1), ts))
-                qti.append(ts)
-                qt = 3
-            elif qt == 3:
-                ts = Timestamp(yr, 9, 30)
-                v = QtR.index == ts
-                if v.any():
-                    qtr.append(self.avgRate(Timestamp(yr, 7, 1), ts, QtR[v].iat[0]))
-                else:
-                    qtr.append(self.avgRate(Timestamp(yr, 7, 1), ts))
-                qti.append(ts)
-                qt = 4
-            elif qt == 4:
-                ts = Timestamp(yr, 12, 31)
-                v = QtR.index == ts
-                if v.any():
-                    qtr.append(self.avgRate(Timestamp(yr, 10, 1), ts, QtR[v].iat[0]))
-                else:
-                    qtr.append(self.avgRate(Timestamp(yr, 10, 1), ts))
-                qti.append(ts)
-                if yr_start:
-                    v = YrR.index == ts
-                    if v.any():
-                        yrr.append(self.avgRate(Timestamp(yr, 1, 1), ts, YrR[v].iat[0]))
-                    else:
-                        yrr.append(self.avgRate(Timestamp(yr, 1, 1), ts))
-                    yri.append(ts)
-                yr += 1
-                qt = 5
-        return Series(yrr, yri, dtype='float64'), Series(qtr, qti, dtype='float64')
+            if sdate in QtR:
+                qtr[sdate] = self.avgRate(Cls, sdate, edate, QtR[sdate])
+            else:
+                qtr[sdate] = self.avgRate(Cls, sdate, edate)
+        yr = yr0
+        while yr <= yr1:
+            sdate = Timestamp(yr, 1, 1)
+            edate = Timestamp(yr, 12, 31)
+            if sdate in YrR:
+                yrr[sdate] = self.avgRate(Cls, sdate, edate, YrR[sdate])
+            else:
+                yrr[sdate] = self.avgRate(Cls, sdate, edate)
+            yr += 1
+        return Series(yrr, dtype='float64'), Series(qtr, dtype='float64')
 
     def update(self) -> None:
-        asset_tags = []
-        for asset_tag, asset_cls in DICT_CLS.items():
-            asset_tags.append(asset_tag)
-            if asset_tag in self.__dict:
+        cTags = []
+        for cTag, cls in DICT_CLS.items():
+            cTags.append(cTag)
+            if cTag in self.__dict:
                 start = TS_END
             else:
                 start = TS_ORI
             vals = {}
-            m = sha512()
-            for grp in asset_cls:
+            dig = 0
+            for grp in cls:
                 for group, df in self.__db.get(grp, KEY_VAL).items():
                     if df is None:
                         continue
@@ -295,11 +288,11 @@ class Tab:
                     if v.any():
                         df = df.iloc[:v[v].index[-1] + 1]
                         vals[group] = df
-                        m.update(df.to_string().encode())
-                        if asset_tag in self.__dict:
-                            if group in self.__vals[asset_tag]:
+                        dig ^= int.from_bytes(sha512(df.to_string().encode()).digest(), byteorder)
+                        if cTag in self.__dict:
+                            if group in self.__vals[cTag]:
                                 val_new = df
-                                val_old = self.__vals[asset_tag][group]
+                                val_old = self.__vals[cTag][group]
                                 assert type(val_old) is DataFrame
                                 if not val_new.equals(val_old):
                                     if val_new.index.size > val_old.index.size:
@@ -317,24 +310,24 @@ class Tab:
                                 if d < start:
                                     start = d
             if start != TS_END:
-                tab = self.__dict[asset_tag][KEY_GRO]
-                yrr = self.__dict[asset_tag][KEY_YRR]
-                qtr = self.__dict[asset_tag][KEY_QTR]
-                tab = self.__calcTab(tab, vals, start)
-                yrr, qtr = self.__calcRate(tab, yrr, qtr, start)
-                self.__dict[asset_tag] = {KEY_GRO: tab, KEY_YRR: yrr, KEY_QTR: qtr}
-                dig = Series([d for d in m.digest()], dtype='uint8')
-                self.__db.set(group_make(GRP_HOME, asset_tag), KEY_GRO, tab)
-                self.__db.set(group_make(GRP_HOME, asset_tag), KEY_YRR, yrr)
-                self.__db.set(group_make(GRP_HOME, asset_tag), KEY_QTR, qtr)
-                self.__db.set(group_make(GRP_HOME, asset_tag), KEY_DIG, dig)
-                self.__vals[asset_tag] = vals
-        for asset_tag in self.__dict.keys():
-            if asset_tag not in asset_tags:
-                del self.__dict[asset_tag]
+                tab = self.__dict[cTag][KEY_GRO]
+                yrr = self.__dict[cTag][KEY_YRR]
+                qtr = self.__dict[cTag][KEY_QTR]
+                tab = self.__calcTab(cls, tab, vals, start)
+                yrr, qtr = self.__calcRate(cls, tab, yrr, qtr, start)
+                self.__dict[cTag] = {KEY_GRO: tab, KEY_YRR: yrr, KEY_QTR: qtr}
+                dig = Series([d for d in dig.to_bytes(64, byteorder)], dtype='uint8')
+                self.__db.set(group_make(GRP_HOME, cTag), KEY_GRO, tab)
+                self.__db.set(group_make(GRP_HOME, cTag), KEY_YRR, yrr)
+                self.__db.set(group_make(GRP_HOME, cTag), KEY_QTR, qtr)
+                self.__db.set(group_make(GRP_HOME, cTag), KEY_DIG, dig)
+                self.__vals[cTag] = vals
+        for cTag in self.__dict.keys():
+            if cTag not in cTags:
+                del self.__dict[cTag]
         return
 
-    def config(self, MaxCount=256, dRate=0.1, MaxAmtResErr=1e-10) -> None:
+    def config(self, MaxCount=4096, dRate=0.1, MaxAmtResErr=1e-10) -> None:
         MaxCount = to_numeric(MaxCount, errors='coerce')
         if MaxCount <= 0:
             raise ValueError('MaxCount must be positive.')
@@ -350,12 +343,12 @@ class Tab:
         return
 
     def load(self, data: db, upd: bool = True) -> DataFrame:
-        for asset_tag, asset_cls in DICT_CLS.items():
-            d = data.get(group_make(GRP_HOME, asset_tag))
+        for cTag, cls in DICT_CLS.items():
+            d = data.get(group_make(GRP_HOME, cTag))
             if type(d) is dict and d.keys() == self.__nul.keys() and all([False for v in d.values() if v is None]):
                 vals = {}
-                m = sha512()
-                for grp in asset_cls:
+                dig = 0
+                for grp in cls:
                     for group, df in data.get(grp, KEY_VAL).items():
                         if df is None:
                             continue
@@ -367,16 +360,16 @@ class Tab:
                         if v.any():
                             df = df.iloc[:v[v].index[-1] + 1]
                             vals[group] = df
-                            m.update(df.to_string().encode())
-                dig = [d for d in m.digest()]
+                            dig ^= int.from_bytes(sha512(df.to_string().encode()).digest(), byteorder)
+                dig = [d for d in dig.to_bytes(64, byteorder)]
                 _dig = d[KEY_DIG]
                 assert type(_dig) is Series
                 if dig == _dig.tolist():
-                    self.__dict[asset_tag] = d
-                    self.__vals[asset_tag] = vals
+                    self.__dict[cTag] = d
+                    self.__vals[cTag] = vals
                     continue
-            self.__dict[asset_tag] = self.__nul
-            self.__vals[asset_tag] = {}
+            self.__dict[cTag] = self.__nul
+            self.__vals[cTag] = {}
         self.__db = data
         if upd:
             self.update()

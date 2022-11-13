@@ -8,7 +8,7 @@ import homWid as hom
 class Win(QMainWindow):
     def __init__(self, data: db | None = None) -> None:
         super().__init__()
-        self.setMinimumSize(1366, 768)
+        self.setMinimumSize(1600, 900)
         if data is None:
             self.__db = db()
         else:

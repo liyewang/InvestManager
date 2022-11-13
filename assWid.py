@@ -28,7 +28,6 @@ PLT_TAG = [
 class Wid(QWidget):
     def __init__(self, data: db, group: str, upd: bool = True) -> None:
         super().__init__()
-        # self.setMinimumSize(1366, 768)
         self.__grp = group
         self.__txn_mod = txn.Mod(data, group)
         self.__val_mod = val.Mod(data, group, upd)
@@ -245,7 +244,7 @@ class Wid(QWidget):
                 mr_pos = -mr_pos * 100
             else:
                 mr_pos = (1 - mr_pos) * 100
-            mr_avg =mr_500.mean()
+            mr_avg = mr_500.mean()
             ts = self.__tab.iloc[head:tail, val.COL_TS]
             dt = self.__tab.iloc[head:tail, val.COL_DT]
             v = ts > 0
