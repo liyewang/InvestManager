@@ -1,8 +1,8 @@
 from PySide6.QtCore import Signal
-from requests import get
 from pandas import Timestamp, concat, to_datetime, read_csv
 from sys import exc_info
 from db import *
+from assInf import *
 from basTab import *
 import txnTab as txn
 
@@ -136,13 +136,13 @@ class Tab:
             typ, code, name = group_info(data)
             if typ in CLS_FUND:
                 try:
-                    info = get(f'https://api.doctorxiong.club/v1/fund/detail?code={code}').json()
-                    code_new = info['data']['code']
+                    info = assInf(code)
+                    code_new = info.code
                     assert code_new == code, f'Asset code [{code_new}] mismatches the group code [{code}].'
                     self.__code = code_new
-                    self.__name = info['data']['name']
-                    unv = DataFrame(info['data']['netWorthData']).iloc[:, :2]
-                    tnv = DataFrame(info['data']['totalNetWorthData'])
+                    self.__name = info.name
+                    unv = DataFrame(info.unitNetWorth).iloc[:, :2]
+                    tnv = DataFrame(info.totalNetWorth)
                     assert all(unv[0] == tnv[0])
                     tab = concat([unv, tnv[1], DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
                     tab.columns = COL_TAG
