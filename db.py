@@ -64,6 +64,8 @@ DICT_ASSET = {
     'Commodity Fund':   GRP_FUND_CMDT,
 }
 
+DICT_ASSET_TAG = {v:k for k,v in DICT_ASSET.items()}
+
 CLS_CASH = {
     GRP_FUND_CASH,
 }

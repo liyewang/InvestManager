@@ -313,9 +313,9 @@ class Mod(Tab, basMod):
             v = self.get().iat[index.row(), index.column()]
             if isna(v):
                 return ''
-            if type(v) is str:
-                return v
             col = index.column()
+            if col == COL_AT:
+                return DICT_ASSET_TAG[v]
             if col <= COL_AN:
                 return str(v)
             elif col == COL_CR or col == COL_AR:
