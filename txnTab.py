@@ -47,6 +47,8 @@ COL_TYP = {
     TAG_RR: 'float64',
 }
 
+TXN_DIGITS = 2
+
 def getAmtMat(df: DataFrame) -> DataFrame:
     rows = df.index.size
     Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
@@ -55,7 +57,7 @@ def getAmtMat(df: DataFrame) -> DataFrame:
     BuyShrExp = 0
     ShrBal = 0
     for col in range(rows):
-        ShrBal += Shr.iat[col]
+        ShrBal = round(ShrBal + Shr.iat[col], TXN_DIGITS)
         if ShrBal < 0:
             raise ValueError(f'Share balance cannot be negative ({ShrBal})', {(COL_SS, col, 1, 1)})
         elif df.iat[col, COL_SS] > 0:
@@ -214,7 +216,7 @@ class Tab:
         Amt = 0
         HoldMat = DataFrame(index=range(rows), columns=range(2), dtype='float64')
         for row in range(rows):
-            HoldShrRes += Shr.iat[row]
+            HoldShrRes = round(HoldShrRes + Shr.iat[row], TXN_DIGITS)
             HoldMat.iat[row, 0] = HoldShrRes
             if HoldShrRes < 0:
                 _data.iloc[:, COL_HS:COL_RR] = HoldMat
@@ -435,7 +437,7 @@ class Mod(Tab, basMod):
                 self.__tab.iat[index.row(), index.column()] = to_datetime(value, errors='ignore')
             else:
                 try:
-                    self.__tab.iat[index.row(), index.column()] = float(value)
+                    self.__tab.iat[index.row(), index.column()] = round(float(value), TXN_DIGITS)
                 except:
                     self.__tab.iat[index.row(), index.column()] = value
             self.__update(scroll=False)
