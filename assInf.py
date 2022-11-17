@@ -11,13 +11,16 @@ class assInf:
         sdate: str | None = None,
         edate: str | None = None
     ) -> None:
-        _url = f'https://api.doctorxiong.club/v1/fund/detail?code={code}'
+        url = f'https://api.doctorxiong.club/v1/fund/detail?code={code}'
         if sdate is not None:
-            _url += f'&startDate={sdate}'
+            url += f'&startDate={sdate}'
         if edate is not None:
-            _url += f'&endDate={edate}'
-        disable_warnings(exceptions.InsecureRequestWarning)
-        self.data = get(url=_url, proxies=PROXIES, verify=False).json()
+            url += f'&endDate={edate}'
+        if PROXIES:
+            disable_warnings(exceptions.InsecureRequestWarning)
+            self.data = get(url, proxies=PROXIES, verify=False).json()
+        else:
+            self.data = get(url).json()
         err = self.data['code']
         if err == 200:
             pass
@@ -90,7 +93,7 @@ if __name__ == '__main__':
 
 
 
-# df = read_xml(req_get(
+# df = read_xml(get(
 #     f'http://data.funds.hexun.com/outxml/detail/openfundnetvalue.aspx?fundcode={code}',
 #     headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
 # ).text)
