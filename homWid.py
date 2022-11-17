@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QVBoxLayout, QSlider,
-                                QLabel, QComboBox, QLineEdit, QPushButton, QGridLayout)
+                                QMenu, QFileDialog, QLabel, QComboBox, QLineEdit, QPushButton)
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from pandas import concat
 from db import *
+from dfIO import *
 import infTab as inf
 import groTab as gro
 
@@ -381,6 +382,40 @@ class Wid(QWidget):
         print(self.__inf_mod.view.currentIndex().row())
         self.__inf_mod.open(self.__inf_mod.view.currentIndex().row())
         return
+
+    def import_inf(self) -> None:
+        file = QFileDialog.getOpenFileName(self, None, '.', FLTR_DFIO_ALL)[0]
+        if file:
+            self.__inf_mod.import_table(file)
+        return
+
+    def export_inf(self) -> None:
+        file = QFileDialog.getSaveFileName(self, None, './ass', FLTR_DFIO)[0]
+        if file:
+            self.__inf_mod.export_table(file, True)
+        return
+
+    def template_inf(self) -> None:
+        file = QFileDialog.getSaveFileName(self, None, './ass_template', FLTR_DFIO)[0]
+        if file:
+            self.__inf_mod.export_table(file, False)
+        return
+
+    def export_gro(self) -> None:
+        cls = self.__gro_mod.getClass()
+        file = QFileDialog.getSaveFileName(self, None, f'./gro_{cls}', FLTR_DFIO)[0]
+        if file:
+            self.__gro_mod.export_table(file)
+        return
+
+    def setDataMenu(self, menu: QMenu) -> None:
+        menu_imp = menu.addMenu('Import')
+        menu_imp.addAction('Assets', self.import_inf)
+        menu_exp = menu.addMenu('Export')
+        menu_exp.addAction('Assets', self.export_inf)
+        menu_exp.addAction('Gross Value', self.export_gro)
+        menu_tmp = menu.addMenu('Template')
+        menu_tmp.addAction('Assets', self.template_inf)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         print(event)

@@ -1,9 +1,10 @@
 from PySide6.QtCore import Signal
-from pandas import Timestamp, concat, to_datetime, read_csv
+from pandas import Timestamp, concat, to_datetime
 from sys import exc_info
 from db import *
 from assInf import *
 from basTab import *
+from dfIO import *
 import txnTab as txn
 
 TAG_DT = 'Date'
@@ -222,13 +223,21 @@ class Tab:
             self.__update(data, txn_tab)
         return self.__tab.copy()
 
-    def import_csv(self, file: str, upd: bool = True) -> DataFrame:
-        tab = read_csv(file).astype(COL_TYP)
+    def import_table(self, file: str, upd: bool = True) -> DataFrame:
+        tab = dfImport(file).astype(COL_TYP)
         if upd:
             self.__update(tab)
         else:
             self.__tab = tab
         return self.__tab.copy()
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        if data:
+            tab = self.__tab
+        else:
+            tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
+        dfExport(tab, file)
+        return
 
 class Mod(Tab, basMod):
     __txn_err = Signal(tuple)
@@ -306,16 +315,23 @@ class Mod(Tab, basMod):
                 basMod.table(self, Tab.table(self))
         return Tab.table(self)
     
-    def import_csv(self, file: str) -> DataFrame | None:
+    def import_table(self, file: str) -> DataFrame | None:
         self.error = ()
         try:
-            tab = Tab.import_csv(self, file, False)
+            tab = Tab.import_table(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None
         else:
             self.table(tab)
         return Tab.table(self)
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        try:
+            Tab.export_table(self, file, data)
+        except:
+            self._raise(exc_info()[1].args)
+        return
 
     def set_raise(self, raise_func) -> None:
         self.__txn_err.connect(raise_func)

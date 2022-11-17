@@ -3,6 +3,7 @@ from hashlib import sha512
 from sys import exc_info, byteorder
 from db import *
 from basTab import *
+from dfIO import *
 import txnTab as txn
 import valTab as val
 
@@ -382,6 +383,9 @@ class Tab:
         self.__cls = cls
         return
 
+    def getClass(self) -> str:
+        return self.__cls
+
     def value(self, cls: str = TAG_CLS_DEF, key: str = KEY_GRO) -> DataFrame | Series:
         assert cls in DICT_CLS.keys(), f'Invalid class [{cls}].'
         assert key in KEYS_HOME, f'Invalid key [{key}].'
@@ -405,6 +409,12 @@ class Tab:
         qtr = self.__dict[self.__cls][KEY_QTR]
         assert type(qtr) is Series
         return qtr.copy()
+
+    def export_table(self, file: str) -> None:
+        tab = self.__dict[self.__cls][KEY_GRO]
+        assert type(tab) is DataFrame
+        dfExport(tab, file)
+        return
 
 class Mod(Tab, basMod):
     def __init__(self, data: db | None = None, upd: bool = True) -> None:
@@ -460,6 +470,13 @@ class Mod(Tab, basMod):
             self._raise(exc_info()[1].args)
         else:
             basMod.table(self, self.table())
+        return
+
+    def export_table(self, file: str) -> None:
+        try:
+            Tab.export_table(self, file)
+        except:
+            self._raise(exc_info()[1].args)
         return
 
 if __name__ == '__main__':

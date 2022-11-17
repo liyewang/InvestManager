@@ -1,10 +1,11 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent
-from pandas import Timestamp, concat, to_numeric, to_datetime, read_csv
+from pandas import Timestamp, concat, to_numeric, to_datetime
 from sys import exc_info
 from db import *
 from basTab import *
+from dfIO import *
 
 TAG_DT = 'Date'
 TAG_BA = 'Buying Amount'
@@ -338,13 +339,21 @@ class Tab:
             self.__calcTab(data)
         return self.__avg
 
-    def import_csv(self, file: str, update: bool = True) -> DataFrame:
-        tab = read_csv(file).astype(COL_TYP)
+    def import_table(self, file: str, update: bool = True) -> DataFrame:
+        tab = dfImport(file).astype(COL_TYP)
         if update:
             self.__calcTab(tab)
         else:
             self.__tab = tab
         return self.__tab.copy()
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        if data:
+            tab = self.__tab
+        else:
+            tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
+        dfExport(tab, file)
+        return
 
 class View(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -360,17 +369,16 @@ class View(QTableView):
         menu = QMenu(self)
         act_del = menu.addAction('Delete')
         action = menu.exec(event.globalPos())
+        print(action.text())
         if action == act_del:
-            print('Delete')
             print(idx.row())
-            if self.__func_del:
-                self.__func_del(idx.row())
+            self.__func_del(idx.row())
         return super().contextMenuEvent(event)
 
     def setDelete(self, func) -> None:
         self.__func_del = func
         return
-    
+
 class Mod(Tab, basMod):
     __txn_update = Signal()
     def __init__(self, data: db | DataFrame | None = None, group: str | None = None) -> None:
@@ -510,15 +518,22 @@ class Mod(Tab, basMod):
             return self.__tab.copy()
         return Tab.table(self)
 
-    def import_csv(self, file: str) -> DataFrame | None:
+    def import_table(self, file: str) -> DataFrame | None:
         try:
-            tab = Tab.import_csv(self, file, False)
+            tab = Tab.import_table(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None
         else:
             self.__update(tab)
         return Tab.table(self)
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        try:
+            Tab.export_table(self, file, data)
+        except:
+            self._raise(exc_info()[1].args)
+        return
 
     def set_update(self, upd_func) -> None:
         self.__txn_update.connect(upd_func)

@@ -226,7 +226,7 @@ if __name__ == '__main__':
     # d.save()
     if renew:
         t = txn.Tab()
-        t.import_csv(os_path.join(os_path.dirname(os_path.abspath(__file__)), 'txn.csv'))
+        t.import_table(os_path.join(os_path.dirname(os_path.abspath(__file__)), 'txn.csv'))
         v = val.Tab(t.table(), 'FundStock_519697_')
         d.set('FundStock_519697_', KEY_INF, DataFrame(NAN,[0],inf.COL_TAG[inf.COL_IA:], dtype='float64'))
         d.set('FundStock_519697_', KEY_TXN, t.table())

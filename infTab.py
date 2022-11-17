@@ -1,10 +1,11 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
-from pandas import concat, read_csv
+from pandas import concat
 from sys import exc_info
 from db import *
 from basTab import *
+from dfIO import *
 import assWid as ass
 import txnTab as txn
 import valTab as val
@@ -217,13 +218,22 @@ class Tab:
             raise TypeError(f'Unsupported data type [{type(item)}].')
         return
 
-    def import_csv(self, file: str, upd: bool = True) -> DataFrame:
+    def import_table(self, file: str, upd: bool = True) -> DataFrame:
+        tab = dfImport(file).astype(COL_TYP)
         self.__tab = concat(
-            [self.__tab, read_csv(file).iloc[:, :COL_AN]], ignore_index=True
+            [self.__tab, tab.iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
             self._update()
         return self.__tab.copy()
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        if data:
+            tab = self.__tab
+        else:
+            tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
+        dfExport(tab, file)
+        return
 
 class View(QTableView):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -454,9 +464,9 @@ class Mod(Tab, basMod):
         basMod.table(self, self.get())
         return
 
-    def import_csv(self, file: str, upd: bool = True) -> DataFrame | None:
+    def import_table(self, file: str, upd: bool = True) -> DataFrame | None:
         try:
-            Tab.import_csv(self, file, False)
+            Tab.import_table(self, file, False)
         except:
             self._raise(exc_info()[1].args)
             return None
@@ -465,6 +475,13 @@ class Mod(Tab, basMod):
         else:
             basMod.table(self, self.get())
         return self.get()
+
+    def export_table(self, file: str, data: bool = True) -> None:
+        try:
+            Tab.export_table(self, file, data)
+        except:
+            self._raise(exc_info()[1].args)
+        return
 
     def open(self, idx: int) -> None:
         tab = self.get()

@@ -1,11 +1,12 @@
-from PySide6.QtWidgets import (QApplication, QWidget, QComboBox, QHBoxLayout,
-                                QVBoxLayout, QLabel, QSlider, QGridLayout)
+from PySide6.QtWidgets import (QApplication, QWidget, QComboBox, QLabel, QSlider,
+                                QMenu, QFileDialog, QHBoxLayout, QVBoxLayout)
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.font_manager import FontProperties
 from db import *
+from dfIO import *
 import txnTab as txn
 import valTab as val
 
@@ -303,6 +304,55 @@ class Wid(QWidget):
         super().show()
         self.__txn_mod.view.scrollToBottom()
         return
+
+    def import_txn(self) -> None:
+        file = QFileDialog.getOpenFileName(self, None, '.', FLTR_DFIO_ALL)[0]
+        if file:
+            self.__txn_mod.import_table(file)
+        return
+
+    def export_txn(self) -> None:
+        code = self.__val_mod.get_code()
+        file = QFileDialog.getSaveFileName(self, None, f'./txn_{code}', FLTR_DFIO)[0]
+        if file:
+            self.__txn_mod.export_table(file, True)
+        return
+
+    def template_txn(self) -> None:
+        file = QFileDialog.getSaveFileName(self, None, './txn_template', FLTR_DFIO)[0]
+        if file:
+            self.__txn_mod.export_table(file, False)
+        return
+
+    def import_val(self) -> None:
+        file = QFileDialog.getOpenFileName(self, None, '.', FLTR_DFIO_ALL)[0]
+        if file:
+            self.__val_mod.import_table(file)
+        return
+
+    def export_val(self) -> None:
+        code = self.__val_mod.get_code()
+        file = QFileDialog.getSaveFileName(self, None, f'./val_{code}', FLTR_DFIO)[0]
+        if file:
+            self.__val_mod.export_table(file, True)
+        return
+
+    def template_val(self) -> None:
+        file = QFileDialog.getSaveFileName(self, None, './val_template', FLTR_DFIO)[0]
+        if file:
+            self.__val_mod.export_table(file, False)
+        return
+
+    def setDataMenu(self, menu: QMenu) -> None:
+        menu_imp = menu.addMenu('Import')
+        menu_imp.addAction('Transaction', self.import_txn)
+        menu_imp.addAction('Net Value', self.import_val)
+        menu_exp = menu.addMenu('Export')
+        menu_exp.addAction('Transaction', self.export_txn)
+        menu_exp.addAction('Net Value', self.export_val)
+        menu_tmp = menu.addMenu('Template')
+        menu_tmp.addAction('Transaction', self.template_txn)
+        menu_tmp.addAction('Net Value', self.template_val)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         print(event)
