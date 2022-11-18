@@ -138,16 +138,15 @@ class Tab:
             if typ in CLS_FUND:
                 try:
                     info = assInf(code)
-                    code_new = info.code
-                    assert code_new == code, f'Asset code [{code_new}] mismatches the group code [{code}].'
-                    self.__code = code_new
+                    assert info.code == code, f'Asset code [{info.code}] mismatches the group code [{code}].'
+                    self.__code = info.code
                     self.__name = info.name
-                    unv = DataFrame(info.unitNetWorth).iloc[:, :2]
-                    tnv = DataFrame(info.totalNetWorth)
-                    assert all(unv[0] == tnv[0])
-                    tab = concat([unv, tnv[1], DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
+                    if typ == GRP_FUND_CASH:
+                        raise
+                    else:
+                        tab = concat([info.netWorth, DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
                     tab.columns = COL_TAG
-                    self.__tab = tab.astype(COL_TYP).drop_duplicates(TAG_DT).sort_values(TAG_DT, ascending=False, ignore_index=True)
+                    self.__tab = tab.astype(COL_TYP)
                 except:
                     raise RuntimeError(f'Fail to load Net Value data: {exc_info()[1].args}')
             else:
