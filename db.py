@@ -41,6 +41,16 @@ GRP_FUND_CMDT = 'FundCmdty'
 GRP_HOME = 'Home'
 GRP_CONF = 'Conf'
 
+DICT_TYP = {
+    '货币型':GRP_FUND_CASH,
+    '债券型':GRP_FUND_BOND,
+    '股票型':GRP_FUND_STOC,
+    '混合型':GRP_FUND_STOC,
+    '指数型':GRP_FUND_STOC,
+    'QDII':GRP_FUND_STOC,
+    '商品':GRP_FUND_CMDT,
+}
+
 CLS_VALID = {
     GRP_FUND_CASH,
     GRP_FUND_BOND,

@@ -1,8 +1,8 @@
 from PySide6.QtCore import Signal
-from pandas import Timestamp, concat, to_datetime
+from pandas import Timestamp, Timedelta, concat, date_range, to_datetime
 from sys import exc_info
 from db import *
-from assInf import *
+import assInf as asi
 from basTab import *
 from dfIO import *
 import txnTab as txn
@@ -136,19 +136,57 @@ class Tab:
                 raise ValueError('Loaded group can only be changed by load function.')
             typ, code, name = group_info(data)
             if typ in CLS_FUND:
+                if self.__tab.empty:
+                    sdate = None
+                    w = 1.
+                else:
+                    sdate = self.__tab.iat[0, COL_DT] + Timedelta(days=1)
+                    w = self.__tab.iat[0, COL_NV]
                 try:
-                    info = assInf(code)
-                    assert info.code == code, f'Asset code [{info.code}] mismatches the group code [{code}].'
-                    self.__code = info.code
-                    self.__name = info.name
-                    if typ == GRP_FUND_CASH:
-                        raise
-                    else:
-                        tab = concat([info.netWorth, DataFrame([[0., 0., NAN, NAN, NAN, NAN]])], axis=1)
-                    tab.columns = COL_TAG
-                    self.__tab = tab.astype(COL_TYP)
+                    info = asi.assInf(code, sdate)
                 except:
                     raise RuntimeError(f'Fail to load Net Value data: {exc_info()[1].args}')
+                assert info.code == code, f'Expecting Asset [{code}] but got [{info.code}].'
+                self.__code = info.code
+                self.__name = info.name
+                self.__type = ''
+                for k, v in DICT_TYP.items():
+                    if k in info.type[:4]:
+                        self.__type = v
+                        break
+                assert self.__type, f'Unsupported type [{info.type}].'
+                if self.__name != name or self.__type != typ:
+                    group_new = group_make(self.__type, code, self.__name)
+                    self.__db.move(self.__grp, group_new)
+                    self.__grp = group_new
+                if not (info.netWorth.empty and info.MCIncome.empty):
+                    if self.__type == GRP_FUND_CASH:
+                        df = info.MCIncome
+                        tab = []
+                        for d, i in df[[asi.TAG_DT, asi.TAG_MI]].to_numpy():
+                            w *= 1 + i * 1e-4
+                            tab.append([d, 1., w, 0., 0., NAN, NAN, NAN, NAN])
+                        tab = DataFrame(tab)
+                    else:
+                        tfill = DataFrame([[0., 0., NAN, NAN, NAN, NAN]])
+                        tab = concat([info.netWorth, tfill], axis=1)
+                    tab.columns = COL_TAG
+                    tab = tab.astype(COL_TYP)
+                    dates = tab[TAG_DT].tolist()
+                    datesFull = date_range(dates[0], dates[-1]).tolist()
+                    if dates != datesFull:
+                        i = -1
+                        for date in datesFull:
+                            if date in dates:
+                                i += 1
+                            else:
+                                tfill = DataFrame([tab.iloc[i]])
+                                tfill.iat[0, COL_DT] = date
+                                tfill.iat[0, COL_TA] = 0.
+                                tfill.iat[0, COL_TS] = 0.
+                                tab = concat([tab, tfill])
+                    tab = tab.sort_values(TAG_DT, ascending=False)
+                    self.__tab = concat([tab, self.__tab], ignore_index=True)
             else:
                 raise ValueError(f'Unsupported asset type [{typ}].')
         elif type(data) is DataFrame:
@@ -185,10 +223,6 @@ class Tab:
                     row_HP = df.index[-1] + 1
         if self.__db is not None:
             self.__db.set(self.__grp, KEY_VAL, self.__tab)
-            if type(data) is str and self.__name != name:
-                group_new = group_make(typ, code, self.__name)
-                self.__db.move(self.__grp, group_new)
-                self.__grp = group_new
         return
 
     def get_code(self) -> str:
@@ -196,6 +230,9 @@ class Tab:
 
     def get_name(self) -> str:
         return self.__name
+
+    def get_type(self) -> str:
+        return self.__type
 
     def get_group(self) -> str:
         return self.__grp
@@ -209,12 +246,12 @@ class Tab:
             txn_tab = DataFrame(columns=txn.COL_TAG).astype(txn.COL_TYP)
         self.__db = data
         self.__grp = group
+        self.__tab = val_tab
         if upd:
             self.__update(group, txn_tab)
         else:
-            self.__tab = val_tab
             self.__txn_tab = txn_tab
-            self.__code, self.__name = group_info(group)[1:]
+            self.__type, self.__code, self.__name = group_info(group)
         return self.__tab.copy()
 
     def table(self, data: str | DataFrame | None = None, txn_tab: DataFrame | None = None) -> DataFrame:

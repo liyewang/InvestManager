@@ -18,13 +18,16 @@ FONT_PATH = R'C:\Windows\Fonts\msyh.ttc'
 # TAG_PR = 'Profit Rate'
 # TAG_AR = 'Average Rate'
 
-TAG_VL = 'Net Value'
-TAG_MR = 'To-MA Ratio'
-
-PLT_TAG = [
-    TAG_VL,
-    TAG_MR,
+LST_MA = [
+    183,
+    365,
+    730,
 ]
+
+TAG_VL = 'Net Value'
+DICT_MA = {f'To-MA{n} Ratio':n for n in LST_MA}
+
+PLT_TAG = [TAG_VL] + list(DICT_MA.keys())
 
 class Wid(QWidget):
     def __init__(self, data: db, group: str, upd: bool = True) -> None:
@@ -32,13 +35,7 @@ class Wid(QWidget):
         self.__grp = group
         self.__txn_mod = txn.Mod(data, group)
         self.__val_mod = val.Mod(data, group, upd)
-        self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, val.COL_DT]
-        self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
-        self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
-        self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
-        self.__mr_500 = (self.__tab.iloc[:, val.COL_NV] / self.__avg500 - 1) * 100
-        self.__mr_avg = Series(self.__mr_500.mean(), self.__mr_500.index)
+        self.__calcData()
         self.__txn_mod.set_update(self.__update)
         self.__val_mod.set_raise(self.__txn_raise)
 
@@ -115,6 +112,18 @@ class Wid(QWidget):
         self.setLayout(layout)
         return
 
+    def __calcData(self) -> None:
+        self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
+        self.__date = self.__tab[val.TAG_DT]
+        self.__mas = {}
+        self.__mrs = {}
+        for n in LST_MA:
+            ma = self.__tab[val.TAG_NV].rolling(window=n, min_periods=1).mean()
+            mr = (self.__tab[val.TAG_NV] / ma - 1) * 100
+            self.__mas[n] = ma
+            self.__mrs[n] = mr
+        return
+
     @Slot()
     def __plot_opt_upd(self, opt: str = TAG_VL) -> None:
         self.__plot_opt_cfg(opt)
@@ -127,11 +136,12 @@ class Wid(QWidget):
             self.__range_min_opt = 20
             self.__ax2.set_axis_on()
             self.__plot = self.__plot_vl
-        elif opt == TAG_MR:
+        elif opt in DICT_MA:
             self.__plot_size = self.__tab.index.size
             self.__range_min_opt = 20
             self.__ax2.set_axis_off()
             self.__plot = self.__plot_mr
+            self.__n = DICT_MA[opt]
         # self.__plot_title = opt
         self.__plot_title = f'{self.__val_mod.get_name()} ({self.__val_mod.get_code()})'
         self.__plot_start_cfg(self.__plot_start.value())
@@ -211,9 +221,7 @@ class Wid(QWidget):
             self.__ax2.clear()
             self.__ax.plot(
                 date, nv,
-                date, self.__avg125[head:tail],
-                date, self.__avg250[head:tail],
-                date, self.__avg500[head:tail],
+                date, DataFrame(self.__mas)[head:tail],
                 txnBA[0], txnBA[1], 'bo',
                 txnSA[0], txnSA[1], 'ro',
                 date, self.__tab.iloc[head:tail, val.COL_HP], 'm-.',
@@ -222,11 +230,13 @@ class Wid(QWidget):
             )
             self.__ax.set(xlabel='Date', ylabel='Value')
             self.__ax.set_title(self.__plot_title, fontsize=16, fontproperties=self.__font)
-            r125 = (nv.iat[-1] / self.__avg125.iat[tail - 1] - 1) * 100
-            r250 = (nv.iat[-1] / self.__avg250.iat[tail - 1] - 1) * 100
-            r500 = (nv.iat[-1] / self.__avg500.iat[tail - 1] - 1) * 100
-            self.__ax.legend(['Net Value', f'MA125 ({r125:+.1f}%)', f'MA250 ({r250:+.1f}%)', f'MA500 ({r500:+.1f}%)',
-                'Buying', 'Selling', 'Holding Price'])
+            tags = ['Net Value']
+            for n, ma in self.__mas.items():
+                assert type(ma) is Series
+                rate = (nv.iat[-1] / ma.iat[tail - 1] - 1) * 100
+                tags += [f'MA{n} ({rate:+.1f}%)']
+            tags += ['Buying', 'Selling', 'Holding Price']
+            self.__ax.legend(tags)
             self.__ax.margins(x=0)
             self.__ax2.set_ylim((self.__ax.set_ylim() / nv.iat[0] - 1) * 100)
             self.__ax2.set_ylabel('Profit Rate (%)')
@@ -239,22 +249,24 @@ class Wid(QWidget):
         tail = head + self.__range
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
-            mr_500 = self.__mr_500[head:tail]
-            mr_pos = (mr_500 > mr_500.iat[-1]).sum() / mr_500.size
+            assert self.__n in LST_MA, f'Unsupported MA option [{self.__n}].'
+            mr = self.__mrs[self.__n][head:tail]
+            assert type(mr) is Series
+            mr_pos = sum(mr > mr.iat[-1]) / mr.size
             if mr_pos > 0.5:
                 mr_pos = -mr_pos * 100
             else:
                 mr_pos = (1 - mr_pos) * 100
-            mr_avg = mr_500.mean()
+            mr_avg = mr.mean()
             ts = self.__tab.iloc[head:tail, val.COL_TS]
             dt = self.__tab.iloc[head:tail, val.COL_DT]
             v = ts > 0
-            txnBA = (dt[v], mr_500[v])
+            txnBA = (dt[v], mr[v])
             v = ts < 0
-            txnSA = (dt[v], mr_500[v])
+            txnSA = (dt[v], mr[v])
             self.__ax.clear()
             self.__ax.plot(
-                date, mr_500,
+                date, mr,
                 date, Series(mr_avg, date.index), 'm-.',
                 txnBA[0], txnBA[1], 'bo',
                 txnSA[0], txnSA[1], 'ro',
@@ -263,7 +275,7 @@ class Wid(QWidget):
             )
             self.__ax.set(xlabel='Date', ylabel='Ratio (%)')
             self.__ax.set_title(self.__plot_title, fontsize=16, fontproperties=self.__font)
-            self.__ax.legend([f'To-MA500 ({mr_pos:+.2f}%)', f'Average ({mr_avg:+.2f}%)', 'Buying', 'Selling'])
+            self.__ax.legend([f'To-MA{self.__n} ({mr_pos:+.2f}%)', f'Average ({mr_avg:+.2f}%)', 'Buying', 'Selling'])
             self.__ax.margins(x=0)
         self.__ax.grid(True)
         self.__canvas.draw()
@@ -284,12 +296,7 @@ class Wid(QWidget):
             self.__val_mod.table(self.__grp, self.__txn_mod.table())
         else:
             self.__val_mod.table(txn_tab=self.__txn_mod.table())
-        self.__tab = self.__val_mod.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, val.COL_DT]
-        self.__avg125 = self.__tab.iloc[:, val.COL_NV].rolling(window=125, min_periods=1).mean()
-        self.__avg250 = self.__tab.iloc[:, val.COL_NV].rolling(window=250, min_periods=1).mean()
-        self.__avg500 = self.__tab.iloc[:, val.COL_NV].rolling(window=500, min_periods=1).mean()
-        self.__mr_500 = (self.__tab.iloc[:, val.COL_NV] / self.__avg500 - 1) * 100
+        self.__calcData()
         self.__plot_opt_upd(self.__plt_opt.currentText())
         # self.__title.setText(f'{self.__val_mod.get_name()}({self.__val_mod.get_code()})')
         # self.__show_stat()

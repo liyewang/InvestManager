@@ -147,22 +147,8 @@ class Tab:
             assert type(v) is DataFrame
             if v.empty:
                 continue
-            for i in v[(v[val.TAG_TS] < 0) & v[val.TAG_UP].isna()].index:
+            for i in v[(v[val.TAG_TS] < 0) & v[val.TAG_UP].isna()].index.sort_values(ascending=False):
                 v.at[i, val.TAG_UP] = v.at[i + 1, val.TAG_UP]
-            _dates = [d for d in dates if d >= v.iat[-1, val.COL_DT] and d <= v.iat[0, val.COL_DT]]
-            val_dates = sorted(v[val.TAG_DT])
-            if _dates != val_dates:
-                i = -1
-                for date in _dates:
-                    if date in val_dates:
-                        i -= 1
-                    else:
-                        v_fill = DataFrame([v.iloc[i]], columns=val.COL_TAG).astype(val.COL_TYP)
-                        v_fill.iat[0, val.COL_DT] = date
-                        v_fill.iat[0, val.COL_TA] = 0.
-                        v_fill.iat[0, val.COL_TS] = 0.
-                        v = concat([v, v_fill])
-                v = v.sort_values(TAG_DT)
             vals = concat([vals, v], ignore_index=True)
         _tab = Tab.sort_values(TAG_DT, ignore_index=True)
         dates_res1 = [d for d in dates if d < Start]
@@ -192,10 +178,11 @@ class Tab:
                 Amt += (v[val.TAG_TS] * v[val.TAG_UP] - v[val.TAG_TA]).sum()
             AccuAmt = Amt + HoldAmt - IvstAmt
             if _val[val.TAG_HS].any():
-                if date in _tab[TAG_DT].values:
-                    Rate = self.avgRate(Cls, End=date, Rate=Rate)
-                else:
-                    Rate = self.avgRate(Cls, End=date)
+                # if date in _tab[TAG_DT].values:
+                #     Rate = self.avgRate(Cls, End=date, Rate=Rate)
+                # else:
+                #     Rate = self.avgRate(Cls, End=date)
+                Rate = 0.############### DEBUG ##################
             __tab.iloc[idx] = date, IvstAmt, HoldAmt, AccuAmt, Rate
             idx += 1
         return __tab.sort_index(ascending=False, ignore_index=True)

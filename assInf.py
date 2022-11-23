@@ -1,6 +1,6 @@
 from requests import get
 from urllib3 import exceptions, disable_warnings
-from pandas import DataFrame, Timestamp, concat, read_html
+from pandas import DataFrame, Series, Timestamp, concat, read_html
 
 PROXIES = {}
 
@@ -20,10 +20,21 @@ class assInf:
         sdate: Timestamp | None = None,
         edate: Timestamp | None = None
     ) -> None:
+        MIN_DAYS = 148
+        d = MIN_DAYS
+        if sdate is not None:
+            if edate is not None:
+                d = (edate - sdate).days
+            else:
+                d = (Timestamp.now() - sdate).days
+        if d < MIN_DAYS:
+            func = [self.__eastmoney, self.__doctorxiong]
+        else:
+            func = [self.__doctorxiong, self.__eastmoney]
         try:
-            self.__doctorxiong(code, sdate, edate)
+            func[0](code, sdate, edate)
         except:
-            self.__eastmoney(code, sdate, edate)
+            func[1](code, sdate, edate)
         return
 
     def __doctorxiong(
@@ -60,17 +71,26 @@ class assInf:
         data = data['data']
         self.__code = data['code']
         self.__name = data['name']
+        self.__type = data['type']
         if TAG_UNW in data:
             unw = DataFrame(data[TAG_UNW]).astype(COL_TYP).dropna().drop_duplicates(0)
             tnw = DataFrame(data[TAG_TNW]).astype(COL_TYP).dropna().drop_duplicates(0)
             assert unw[0].equals(tnw[0]), f'Requested data mismatches [{self.__code}]'
             df = concat([unw.iloc[:, :2], tnw[1]], axis=1)
             df.columns = [TAG_DT, TAG_UW, TAG_TW]
-            self.__nws = df.sort_values(TAG_DT, ascending=False, ignore_index=True)
+            if sdate is not None:
+                df = df[df[TAG_DT] >= sdate]
+            if edate is not None:
+                df = df[df[TAG_DT] <= edate]
+            self.__nws = df.sort_values(TAG_DT, ignore_index=True)
         elif TAG_MCI in data:
             df = DataFrame(data[TAG_MCI]).astype(COL_TYP).dropna().drop_duplicates(0)
             df.columns = [TAG_DT, TAG_MI]
-            self.__mci = df.sort_values(TAG_DT, ascending=False, ignore_index=True)
+            if sdate is not None:
+                df = df[df[TAG_DT] >= sdate]
+            if edate is not None:
+                df = df[df[TAG_DT] <= edate]
+            self.__mci = df.sort_values(TAG_DT, ignore_index=True)
         else:
             raise ValueError('Unsupported data type.')
         return
@@ -88,6 +108,7 @@ class assInf:
             if detail['CATEGORYDESC'] == '基金':
                 self.__code = detail['CODE']
                 self.__name = detail['NAME']
+                self.__type = detail['FundBaseInfo']['FTYPE']
                 break
 
         TAG_DAT = '净值日期'
@@ -108,19 +129,28 @@ class assInf:
         }
         df = DataFrame()
         while page <= pages:
-            url += f'&page={page}'
-            data = get(url, headers=HEADERS, proxies=PROXIES, verify=False).text
+            data = get(f'{url}&page={page}', headers=HEADERS, proxies=PROXIES, verify=False).text
             df = concat([df, read_html(data)[0]])
             pages = int(data.split(',')[2][6:])
             page += 1
+        if pages < 1:
+            df = df.drop(df.index)
         if df.columns[1] == TAG_UNW:
             df = df.iloc[:, :3].astype(COL_TYP).dropna().drop_duplicates(TAG_DAT)
             df.columns = [TAG_DT, TAG_UW, TAG_TW]
-            self.__nws = df.sort_values(TAG_DT, ascending=False, ignore_index=True)
+            if sdate is not None:
+                df = df[df[TAG_DT] >= sdate]
+            if edate is not None:
+                df = df[df[TAG_DT] <= edate]
+            self.__nws = df.sort_values(TAG_DT, ignore_index=True)
         elif df.columns[1] == TAG_MCI:
             df = df.iloc[:, :2].astype(COL_TYP).dropna().drop_duplicates(TAG_DAT)
             df.columns = [TAG_DT, TAG_MI]
-            self.__mci = df.sort_values(TAG_DT, ascending=False, ignore_index=True)
+            if sdate is not None:
+                df = df[df[TAG_DT] >= sdate]
+            if edate is not None:
+                df = df[df[TAG_DT] <= edate]
+            self.__mci = df.sort_values(TAG_DT, ignore_index=True)
         else:
             raise ValueError('Unsupported data type.')
         return
@@ -134,12 +164,39 @@ class assInf:
         return self.__name
 
     @property
+    def type(self) -> str:
+        return self.__type
+
+    @property
     def netWorth(self) -> DataFrame:
         return self.__nws.copy()
 
     @property
     def MCIncome(self) -> DataFrame:
         return self.__mci.copy()
+
+def trade_dates(
+        sdate: Timestamp | None = None,
+        edate: Timestamp | None = None
+) -> Series:
+    url = 'https://api.doctorxiong.club/v1/stock/kline/day?code=sh000001'
+    if sdate is not None:
+        url += f'&startDate={sdate.strftime(r"%Y-%m-%d")}'
+    if edate is not None:
+        url += f'&endDate={edate.strftime(r"%Y-%m-%d")}'
+    disable_warnings(exceptions.InsecureRequestWarning)
+    data = get(url, proxies=PROXIES, verify=False).json()
+    err = data['code']
+    if err == 200:
+        pass
+    elif err == 400:
+        raise RuntimeError('Request failed.')
+    elif err == 500:
+        raise RuntimeError('Internal network error.')
+    else:
+        raise RuntimeError('Unknown error.')
+    dates = Series([d[0] for d in data['data']], dtype='datetime64[ns]')
+    return dates.sort_values(ignore_index=True)
 
 if __name__ == '__main__':
     code = '000001'
@@ -151,3 +208,6 @@ if __name__ == '__main__':
     print(a.name)
     print(a.netWorth)
     print(a.MCIncome)
+
+    # dates = trade_dates()
+    # print(dates)
