@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QVBoxLayout, QSlider,
+from PySide6.QtWidgets import (QApplication, QWidget, QHBoxLayout, QVBoxLayout, QSlider, QCompleter,
                                 QMenu, QFileDialog, QLabel, QComboBox, QLineEdit, QPushButton)
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QKeyEvent
@@ -7,6 +7,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvas
 from pandas import concat
 from db import *
 from dfIO import *
+from assInf import assLst
 import infTab as inf
 import groTab as gro
 
@@ -23,6 +24,8 @@ PLT_TAG = [
     TAG_AR,
     TAG_QR,
 ]
+
+ASS_TYPS = ['Auto'] + list(DICT_ASSET.keys())
 
 class Wid(QWidget):
     def __init__(self, data: db, open_func = None, upd: bool = True) -> None:
@@ -79,9 +82,11 @@ class Wid(QWidget):
         plot_range_layout.addWidget(self.__plot_range_max)
 
         self.__assetType = QComboBox()
-        self.__assetType.addItems(DICT_ASSET.keys())
+        self.__assetType.addItems(ASS_TYPS)
+        self.__assetType.currentTextChanged.connect(self.__ass_typ_upd)
         self.__assetCode = QLineEdit()
         self.__assetCode.setPlaceholderText(inf.TAG_AC)
+        self.__assetCode.textChanged.connect(self.__assSearch)
         self.__assetCode.returnPressed.connect(self.__assAdd)
         assetAdd = QPushButton()
         assetAdd.setText('Add')
@@ -351,12 +356,42 @@ class Wid(QWidget):
         self.__plot_opt_upd(self.__plt_opt.currentText())
         return
 
+    def __ass_typ_upd(self) -> None:
+        if self.__assetType.currentText() == 'Auto':
+            self.__assetCode.textChanged.connect(self.__assSearch)
+        else:
+            self.__assetCode.textChanged.disconnect(self.__assSearch)
+            self.__assetCode.setCompleter(None)
+        return
+
+    def __assSearch(self) -> None:
+        code = self.__assetCode.text()
+        if not code:
+            return
+        code = code.split()[0]
+        if len(code) < 3:
+            return
+        QApplication.processEvents()
+        self.__search_data = assLst(code).data
+        completer = QCompleter([f'{k} {v["name"]}' for k,v in self.__search_data.items()])
+        completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
+        self.__assetCode.setCompleter(completer)
+        return
+
     @Slot()
     def __assAdd(self) -> None:
         print('Add')
-        print(DICT_ASSET[self.__assetType.currentText()])
-        print(self.__assetCode.text())
-        self.__inf_mod.add(DICT_ASSET[self.__assetType.currentText()], self.__assetCode.text())
+        code = self.__assetCode.text()
+        if not code:
+            return
+        code = code.split()[0]
+        if self.__assetType.currentText() == 'Auto':
+            typ = group_type(self.__search_data[code]['type'])
+        else:
+            typ = group_type(self.__assetType.currentText())
+        print(typ)
+        print(code)
+        self.__inf_mod.add(typ, code)
         self.__assetCode.clear()
         return
 
@@ -371,9 +406,7 @@ class Wid(QWidget):
     @Slot()
     def __assUpd(self) -> None:
         print('Update')
-        self.__inf_mod.update()
-        self.__gro_mod.update()
-        self.__plot_upd()
+        self.refresh()
         return
 
     @Slot()
@@ -381,6 +414,12 @@ class Wid(QWidget):
         print('Open')
         print(self.__inf_mod.view.currentIndex().row())
         self.__inf_mod.open(self.__inf_mod.view.currentIndex().row())
+        return
+
+    def refresh(self, group: str | None = None, online: bool = True) -> None:
+        self.__inf_mod.update(group, online)
+        self.__gro_mod.update()
+        self.__plot_upd()
         return
 
     def import_inf(self) -> None:

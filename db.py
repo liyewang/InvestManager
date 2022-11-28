@@ -119,6 +119,19 @@ def group_info(group: str) -> tuple[str, str, str]:
 def group_make(typ: str, code: str = '', name: str = '') -> str:
     return f'{typ}{GRP_SEP}{code}{GRP_SEP}{name.encode().hex()}'
 
+def group_type(typ: str) -> str:
+    _typ = ''
+    if typ in CLS_ASSET:
+        _typ = typ
+    elif typ in DICT_ASSET:
+        _typ = DICT_ASSET[typ]
+    else:
+        for k, v in DICT_TYP.items():
+            if k in typ[:4]:
+                _typ = v
+    assert _typ, f'Unsupported type [{typ}].'
+    return _typ
+
 class db:
     def __init__(self, path: str | None = None, complevel: int = 1) -> None:
         if complevel < 0 or complevel > 9:

@@ -143,21 +143,17 @@ class Tab:
                     sdate = self.__tab.iat[0, COL_DT] + Timedelta(days=1)
                     w = self.__tab.iat[0, COL_NV]
                 try:
-                    info = asi.assInf(code, sdate)
+                    info = asi.assDat(code, sdate)
                 except:
                     raise RuntimeError(f'Fail to load Net Value data: {exc_info()[1].args}')
                 assert info.code == code, f'Expecting Asset [{code}] but got [{info.code}].'
                 self.__code = info.code
                 self.__name = info.name
-                self.__type = ''
-                for k, v in DICT_TYP.items():
-                    if k in info.type[:4]:
-                        self.__type = v
-                        break
-                assert self.__type, f'Unsupported type [{info.type}].'
+                self.__type = group_type(info.type)
                 if self.__name != name or self.__type != typ:
                     group_new = group_make(self.__type, code, self.__name)
-                    self.__db.move(self.__grp, group_new)
+                    if self.__db.get(self.__grp):
+                        self.__db.move(self.__grp, group_new)
                     self.__grp = group_new
                 if not (info.netWorth.empty and info.MCIncome.empty):
                     if self.__type == GRP_FUND_CASH:

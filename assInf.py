@@ -9,11 +9,26 @@ TAG_UW = 'Unit Net Worth'
 TAG_TW = 'Total Net Worth'
 TAG_MI = 'Million Copies Income'
 
-class assInf:
-    __code = ''
-    __name = ''
-    __mci = DataFrame()
-    __nws = DataFrame()
+class assLst:
+    def __init__(self, code: str) -> None:
+        self.__data = {}
+        url = f'https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key={code}'
+        disable_warnings(exceptions.InsecureRequestWarning)
+        data = get(url, proxies=PROXIES, verify=False).json()
+        for detail in data['Datas']:
+            if detail['CATEGORYDESC'] == '基金':
+                code = detail['CODE']
+                name = detail['NAME']
+                typ = detail['FundBaseInfo']['FTYPE']
+                self.__data[code] = {'name':name, 'type':typ}
+        print(f'search [{code}]')
+        return
+
+    @property
+    def data(self) -> dict[str:dict[str:str]]:
+        return self.__data
+
+class assDat:
     def __init__(
         self,
         code: str,
@@ -31,10 +46,17 @@ class assInf:
             func = [self.__eastmoney, self.__doctorxiong]
         else:
             func = [self.__doctorxiong, self.__eastmoney]
+        self.__code = ''
+        self.__name = ''
+        self.__type = ''
+        self.__mci = DataFrame()
+        self.__nws = DataFrame()
         try:
             func[0](code, sdate, edate)
+            print(func[0].__name__, code)
         except:
             func[1](code, sdate, edate)
+            print(func[1].__name__, code)
         return
 
     def __doctorxiong(
@@ -200,14 +222,17 @@ def trade_dates(
 
 if __name__ == '__main__':
     code = '000001'
-    sdate = Timestamp('2022-11-01')
-    edate = Timestamp('2022-12-01')
-    a = assInf(code, sdate, edate)
-    # a = assInf(code)
-    print(a.code)
-    print(a.name)
-    print(a.netWorth)
-    print(a.MCIncome)
+    # sdate = Timestamp('2022-11-01')
+    # edate = Timestamp('2022-12-01')
+    # a = assDat(code, sdate, edate)
+    # a = assDat(code)
+    a = assLst(code)
+    print(a.data)
+    # print(a.code)
+    # print(a.name)
+    # print(a.type)
+    # print(a.netWorth)
+    # print(a.MCIncome)
 
     # dates = trade_dates()
     # print(dates)

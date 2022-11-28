@@ -32,9 +32,9 @@ PLT_TAG = [TAG_VL] + list(DICT_MA.keys())
 class Wid(QWidget):
     def __init__(self, data: db, group: str, upd: bool = True) -> None:
         super().__init__()
-        self.__grp = group
         self.__txn_mod = txn.Mod(data, group)
         self.__val_mod = val.Mod(data, group, upd)
+        self.__grp = self.__val_mod.get_group()
         self.__calcData()
         self.__txn_mod.set_update(self.__update)
         self.__val_mod.set_raise(self.__txn_raise)
@@ -294,6 +294,7 @@ class Wid(QWidget):
     def __update(self, online: bool = False) -> None:
         if online:
             self.__val_mod.table(self.__grp, self.__txn_mod.table())
+            self.__grp = self.__val_mod.get_group()
         else:
             self.__val_mod.table(txn_tab=self.__txn_mod.table())
         self.__calcData()
@@ -367,6 +368,10 @@ class Wid(QWidget):
             print('Update')
             self.__update(True)
         return super().keyPressEvent(event)
+
+    @property
+    def group(self) -> str:
+        return self.__grp
 
 if __name__ == '__main__':
     d = db(DB_PATH)

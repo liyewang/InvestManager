@@ -186,7 +186,7 @@ class basMod(QAbstractTableModel):
         self.view.setAutoScroll(auto)
         return
 
-    def __colorMap(self, colorMap: dict, row: int, col: int) -> QColor | None:
+    def __colorMap(self, colorMap: dict[int, set[QRect]], row: int, col: int) -> QColor | None:
         for color, rects in colorMap.items():
             for rect in rects:
                 if rect.contains(col, row):

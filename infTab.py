@@ -53,12 +53,12 @@ COL_TYP = {
 DUP_ERR = 'Duplicated asset is not allowed.'
 
 class Tab:
-    def __init__(self, data: db | None = None, upd: bool = True) -> None:
+    def __init__(self, data: db | None = None, upd: bool = True, online: bool = True) -> None:
         self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         if data is None:
             self.__db = db()
         else:
-            self.load(data, upd)
+            self.load(data, upd, online)
         return
 
     def __str__(self) -> str:
@@ -137,7 +137,7 @@ class Tab:
                 s.iat[COL_AR] = txn.Tab(txn_tab).avgRate()
         return s
 
-    def _update(self, idx: int | None = None, online: bool = True) -> None:
+    def __update(self, idx: int | None = None, online: bool = True) -> None:
         if idx is None:
             _range = range(self.__tab.index.size)
         else:
@@ -150,6 +150,8 @@ class Tab:
                 if online:
                     v = val.Tab(self.__db, group)
                     val_tab = v.table()
+                    self.__tab.iat[row, COL_AT] = v.get_type()
+                    self.__tab.iat[row, COL_AN] = v.get_name()
                     group = v.get_group()
                 else:
                     val_tab = val.Tab(self.__db, group, False).table()
@@ -158,6 +160,7 @@ class Tab:
             else:
                 if online:
                     v = val.Tab(self.__db, group)
+                    self.__tab.iat[row, COL_AT] = v.get_type()
                     self.__tab.iat[row, COL_AN] = v.get_name()
                     group = v.get_group()
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
@@ -165,7 +168,10 @@ class Tab:
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         return
 
-    def load(self, data: db, upd: bool = True) -> DataFrame:
+    def update(self, idx: int | None = None, online: bool = True) -> None:
+        return self.__update(idx, online)
+
+    def load(self, data: db, upd: bool = True, online: bool = True) -> DataFrame:
         self.__tab = DataFrame(columns=COL_TAG).astype(COL_TYP)
         self.__db = data
         for group, df in self.__db.get(key=KEY_INF).items():
@@ -175,7 +181,7 @@ class Tab:
             self.__tab = concat([self.__tab, df], ignore_index=True)
         self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
-            self._update()
+            self.__update(online=online)
         return self.__tab.copy()
 
     def get(self, item: int | str | None = None) -> DataFrame | Series:
@@ -197,7 +203,7 @@ class Tab:
         )], ignore_index=True)
         self.__verify(tab)
         self.__tab = tab
-        self._update(self.__tab.index[-1])
+        self.__update(self.__tab.index[-1])
         return
 
     def delete(self, item: int | str | None = None) -> None:
@@ -224,7 +230,7 @@ class Tab:
             [self.__tab, tab.iloc[:, :COL_AN]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
-            self._update()
+            self.__update()
         return self.__tab.copy()
 
     def export_table(self, file: str, data: bool = True) -> None:
@@ -299,14 +305,14 @@ class View(QTableView):
 
 class Mod(Tab, basMod):
     __asset_open = Signal(QWidget)
-    def __init__(self, data: db | None = None, upd: bool = True) -> None:
+    def __init__(self, data: db | None = None, upd: bool = True, online: bool = True) -> None:
         Tab.__init__(self)
         basMod.__init__(self, self.get(), View)
         self.__db = None
         if data is None:
             basMod.table(self, self.get())
         else:
-            self.load(data, upd)
+            self.load(data, upd, online)
         self.view.setMinimumWidth(866)
         self.view.setDelete(self.delete)
         self.view.setUpdate(self.update)
@@ -339,7 +345,7 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basMod.data(self, index, role)
 
-    def update(self, data: int | str | None = None) -> None:
+    def update(self, data: int | str | None = None, online: bool = True) -> None:
         if type(data) is str:
             typ, code = group_info(data)[:2]
             if not (typ in CLS_ASSET and code):
@@ -358,43 +364,59 @@ class Mod(Tab, basMod):
         rows = tab.index.size
         cols = tab.columns.size
         if rows:
-            if data is None:
-                _range = range(rows)
-                self.error = ()
-                self.setColor()
-            elif data >= 0 and data < rows - 1:
-                _range = (data,)
-                self.setColor(None, None, 0, data, cols, 1)
-            else:
-                _range = ()
-            for row in _range:
-                try:
-                    self._update(row, True)
-                except:
+            if online or (len(self.error) > 0 and 'DB error' in self.error[0]):
+                if data is None:
+                    _range = range(rows)
+                    self.error = ()
+                    self.setColor()
+                elif data >= 0 and data < rows - 1:
+                    _range = (data,)
+                    self.setColor(None, None, 0, data, cols, 1)
+                else:
+                    _range = ()
+                for row in _range:
                     try:
-                        self._update(row, False)
+                        Tab.update(self, row, True)
+                    except:
+                        try:
+                            Tab.update(self, row, False)
+                        except:
+                            basMod.table(self, self.get())
+                            self._raise((f'DB error [{exc_info()[1].args}].', {(0, row, cols, 1)}))
+                            return
+                        else:
+                            self._raise((exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
+                    else:
+                        self.setColor(FORE, COLOR_INFO[FORE], 0, row, cols, 1)
+                        self.setColor(BACK, COLOR_INFO[BACK], 0, row, cols, 1)
+                    # basMod.table(self, self.get())
+            else:
+                if data is None:
+                    _range = range(rows)
+                    self.error = ()
+                elif data >= 0 and data < rows - 1:
+                    _range = (data,)
+                else:
+                    _range = ()
+                for row in _range:
+                    try:
+                        Tab.update(self, row, False)
                     except:
                         basMod.table(self, self.get())
                         self._raise((f'DB error [{exc_info()[1].args}].', {(0, row, cols, 1)}))
                         return
-                    else:
-                        self._raise((exc_info()[1].args[0], {(0, row, cols, 1)}), LV_WARN, msgBox=False)
-                else:
-                    self.setColor(FORE, COLOR_INFO[FORE], 0, row, cols, 1)
-                    self.setColor(BACK, COLOR_INFO[BACK], 0, row, cols, 1)
-                # basMod.table(self, self.get())
         basMod.table(self, self.get())
         return
 
-    def load(self, data: db, upd: bool = True) -> DataFrame | None:
+    def load(self, data: db, upd: bool = True, online: bool = True) -> DataFrame | None:
         try:
-            Tab.load(self, data, False)
+            Tab.load(self, data, False, False)
         except:
             self._raise(exc_info()[1].args)
             return None
         self.__db = data
         if upd:
-            self.update()
+            self.update(online=online)
         else:
             basMod.table(self, self.get())
         return self.get()
@@ -424,7 +446,7 @@ class Mod(Tab, basMod):
         else:
             tab = self.get()
             cols = tab.columns.size
-            v = (tab.iloc[:, COL_AT] == typ) & (tab.iloc[:, COL_AC] == code)
+            v = tab.iloc[:, COL_AC] == code
             if v.any():
                 row = v[v].index[0]
                 self.adjColor(y0=row, y1=row + 1)
@@ -486,7 +508,11 @@ class Mod(Tab, basMod):
     def open(self, idx: int) -> None:
         tab = self.get()
         group = group_make(tab.iat[idx, COL_AT], tab.iat[idx, COL_AC], tab.iat[idx, COL_AN])
-        self.__asset_open.emit(ass.Wid(self.__db, group, False))
+        if self.__db.get(group, KEY_VAL) is None:
+            upd = True
+        else:
+            upd = False
+        self.__asset_open.emit(ass.Wid(self.__db, group, upd))
         return
 
     def set_open(self, open_func) -> None:
