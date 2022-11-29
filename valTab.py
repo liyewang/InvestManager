@@ -103,18 +103,18 @@ class Tab:
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
-        if df.dtypes[COL_DT] != 'datetime64[ns]':
+        if data.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
-                if type(df.iat[row, COL_DT]) is not Timestamp:
+                if type(data.iat[row, COL_DT]) is not Timestamp:
                     rects.add((COL_DT, row, 1, 1))
             if rects:
                 raise TypeError('Date type is required.', rects)
             else:
                 raise TypeError('Date type is required.', {(COL_DT, 0, 1, rows)})
         for col in range(COL_UV, len(COL_TAG)):
-            if df.dtypes[col] != 'float64':
+            if data.dtypes[col] != 'float64':
                 for row in range(rows):
-                    if type(df.iat[row, col]) is not float:
+                    if type(data.iat[row, col]) is not float:
                         rects.add((col, row, 1, 1))
                 if rects:
                     raise ValueError('Numeric type is required.', rects)

@@ -140,9 +140,9 @@ class Tab:
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
         df = data.fillna(0.)
 
-        if df.dtypes[COL_DT] != 'datetime64[ns]':
+        if data.dtypes[COL_DT] != 'datetime64[ns]':
             for row in range(rows):
-                if type(df.iat[row, COL_DT]) is not Timestamp:
+                if type(data.iat[row, COL_DT]) is not Timestamp:
                     rects.add((COL_DT, row, 1, 1))
             if rects:
                 raise TypeError('Date type is required.', rects)
@@ -150,9 +150,9 @@ class Tab:
                 raise TypeError('Date type is required.', {(COL_DT, 0, 1, rows)})
 
         for col in range(COL_BA, len(COL_TAG)):
-            if df.dtypes[col] != 'float64':
+            if data.dtypes[col] != 'float64':
                 for row in range(rows):
-                    if type(df.iat[row, col]) is not float:
+                    if type(data.iat[row, col]) is not float:
                         rects.add((col, row, 1, 1))
                 if rects:
                     raise ValueError('Numeric type is required.', rects)
@@ -430,17 +430,18 @@ class Mod(Tab, basMod):
                 return int(Qt.AlignRight | Qt.AlignVCenter)
         return basMod.data(self, index, role)
 
-    def setData(self, index: QModelIndex, value, role: int = Qt.EditRole) -> bool:
+    def setData(self, index: QModelIndex, value: str, role: int = Qt.EditRole) -> bool:
         if index.isValid() and role == Qt.EditRole:
-            if value == '':
-                value = 'nan'
             if index.column() == COL_DT:
                 self.__tab.iat[index.row(), index.column()] = to_datetime(value, errors='ignore')
             else:
-                try:
-                    self.__tab.iat[index.row(), index.column()] = round(float(value), TXN_DIGITS)
-                except:
-                    self.__tab.iat[index.row(), index.column()] = value
+                if value == '':
+                    self.__tab.iat[index.row(), index.column()] = NAN
+                else:
+                    try:
+                        value = round(float(value.replace(',', '')), TXN_DIGITS)
+                    finally:
+                        self.__tab.iat[index.row(), index.column()] = value
             self.__update(scroll=False)
             return True
         return False

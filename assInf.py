@@ -52,11 +52,11 @@ class assDat:
         self.__mci = DataFrame()
         self.__nws = DataFrame()
         try:
-            func[0](code, sdate, edate)
             print(func[0].__name__, code)
+            func[0](code, sdate, edate)
         except:
-            func[1](code, sdate, edate)
             print(func[1].__name__, code)
+            func[1](code, sdate, edate)
         return
 
     def __doctorxiong(
