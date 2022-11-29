@@ -219,7 +219,7 @@ class Tab:
                 row_HS = df.index[-1] + 1
                 if txnShr.iat[i] > 0 and not isna(self.__txn_tab.iat[i, txn.COL_BA]):
                     self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__txn_tab.iat[i, txn.COL_HP] \
-                        * df.iat[0, COL_NV] / df.iat[0, COL_UV]
+                        + df.iat[0, COL_NV] - df.iat[0, COL_UV]
                     row_HP = df.index[-1] + 1
                 elif not self.__txn_tab.iat[i, txn.COL_HS]:
                     row_HP = df.index[-1] + 1
