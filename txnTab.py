@@ -177,12 +177,13 @@ class Tab:
             if rects:
                 raise ValueError('Negative Share is not allowed.', rects)
 
+        v = data.iloc[:, COL_SA].isna() & ~data.iloc[:, COL_SS].isna()
+        for row in v[v].index:
+            rects.add((col[0], row, 1, 1))
+        if rects:
+            raise ValueError('Amount data is missing.', rects)
+
         for col in {(COL_BA, COL_BS), (COL_SA, COL_SS)}:
-            v = data.iloc[:, col[0]].isna() & ~data.iloc[:, col[1]].isna()
-            for row in v[v].index:
-                rects.add((col[0], row, 1, 1))
-            if rects:
-                raise ValueError('Amount data is missing.', rects)
             v = (df.iloc[:, col[0]] / df.iloc[:, col[1]]).isin([float('inf')])
             for row in v[v].index:
                 rects.add((col[0], row, 2, 1))

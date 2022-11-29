@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal
-from pandas import Timestamp, Timedelta, concat, date_range, to_datetime
+from pandas import Timestamp, concat, date_range, to_datetime, isna
 from sys import exc_info
 from db import *
 import assInf as asi
@@ -134,13 +134,19 @@ class Tab:
         if type(data) is str:
             if not (self.__grp is None or self.__grp == data):
                 raise ValueError('Loaded group can only be changed by load function.')
+            try:
+                self.__verify(self.__tab)
+            except:
+                print(f'[{data}] error: {exc_info()[1].args}')
+                print(f'Refresh [{data}].')
+                self.__tab = self.__tab.drop(self.__tab.index)
             typ, code, name = group_info(data)
             if typ in CLS_FUND:
                 if self.__tab.empty:
                     sdate = None
                     w = 1.
                 else:
-                    sdate = self.__tab.iat[0, COL_DT] + Timedelta(days=1)
+                    sdate = self.__tab.iat[0, COL_DT]
                     w = self.__tab.iat[0, COL_NV]
                 try:
                     info = asi.assDat(code, sdate)
@@ -181,6 +187,8 @@ class Tab:
                                 tfill.iat[0, COL_TA] = 0.
                                 tfill.iat[0, COL_TS] = 0.
                                 tab = concat([tab, tfill])
+                    if sdate is not None:
+                        tab = tab[tab[TAG_DT] > sdate]
                     tab = tab.sort_values(TAG_DT, ascending=False)
                     self.__tab = concat([tab, self.__tab], ignore_index=True)
             else:
@@ -202,8 +210,6 @@ class Tab:
                 df = self.__tab[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
                 if df.empty:
                     raise ValueError(DATE_ERR, {(txn.COL_DT, i, 1, 1)})
-                # self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_NV] \
-                #     * (self.__txn_tab.iat[i, txn.COL_HS] * df.iat[0, COL_UV] / df.iat[0, COL_NV])
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UV] \
                     * self.__txn_tab.iat[i, txn.COL_HS]
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HS] = self.__txn_tab.iat[i, txn.COL_HS]
@@ -211,9 +217,9 @@ class Tab:
                 self.__tab.iat[df.index[-1], COL_TA] = txnAmt.iat[i]
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
-                if txnShr.iat[i] > 0:
-                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__tab.iloc[row_HP:df.index[-1] + 1, COL_NV] \
-                        - self.__tab.iloc[row_HP:df.index[-1] + 1, COL_UV] + self.__txn_tab.iat[i, txn.COL_HP]
+                if txnShr.iat[i] > 0 and not isna(self.__txn_tab.iat[i, txn.COL_BA]):
+                    self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__txn_tab.iat[i, txn.COL_HP] \
+                        * df.iat[0, COL_NV] / df.iat[0, COL_UV]
                     row_HP = df.index[-1] + 1
                 elif not self.__txn_tab.iat[i, txn.COL_HS]:
                     row_HP = df.index[-1] + 1
