@@ -211,9 +211,10 @@ class Wid(QWidget):
         if tail <= self.__tab.index.size and head >= 0 and tail - head > 0:
             date = self.__date[head:tail]
             nv = self.__tab.iloc[head:tail, val.COL_NV]
+            ta = self.__tab.iloc[head:tail, val.COL_TA]
             ts = self.__tab.iloc[head:tail, val.COL_TS]
             dt = self.__tab.iloc[head:tail, val.COL_DT]
-            v = ts > 0
+            v = (ts > 0) & (~ta.isna())
             txnBA = (dt[v], nv[v])
             v = ts < 0
             txnSA = (dt[v], nv[v])

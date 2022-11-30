@@ -202,7 +202,10 @@ class Tab:
             self.__txn_tab = txn_tab.copy()
         if not (data is None and txn_tab is None) and self.__tab.index.size:
             self.__tab.iloc[:, COL_HA:] = DataFrame([[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))
-            txnAmt = self.__txn_tab.iloc[:, txn.COL_BA].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SA].fillna(0.)
+            ba = self.__txn_tab.iloc[:, txn.COL_BA]
+            sa = self.__txn_tab.iloc[:, txn.COL_SA]
+            txnAmt = ba.fillna(0.) - sa.fillna(0.)
+            txnAmt[ba.isna() & sa.isna()] = NAN
             txnShr = self.__txn_tab.iloc[:, txn.COL_BS].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
