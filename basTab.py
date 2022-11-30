@@ -298,6 +298,6 @@ if __name__ == '__main__':
 
     tv = basMod(df)
     tv.show()
-    # tv.table(df.iloc[:2, :])
+    # tv.table(df.iloc[:2])
 
     app.exec()

@@ -35,7 +35,7 @@ class Wid(QWidget):
         if open_func is not None:
             self.__inf_mod.set_open(open_func)
         self.__tab = self.__gro_mod.table().sort_index(ascending=False, ignore_index=True)
-        self.__date = self.__tab.iloc[:, gro.COL_DT]
+        self.__date = self.__tab[gro.TAG_DT]
 
         self.__fig = Figure()
         self.__canvas = FigureCanvas(self.__fig)

@@ -51,7 +51,7 @@ TXN_DIGITS = 2
 
 def getAmtMat(df: DataFrame) -> DataFrame:
     rows = df.index.size
-    Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
+    Shr = df[TAG_BS] - df[TAG_SS]
     AmtMat = DataFrame(data=0, index=range(rows), columns=range(rows), dtype='float64')
     row_0 = 0
     BuyShrExp = 0
@@ -89,7 +89,7 @@ def getAmtRes(df: DataFrame, AmtMat: DataFrame, Rate: float) -> float:
     else:
         RateSign = 1
     AmtRes = 0.
-    for col in df[df.iloc[:, COL_SS] > 0].index:
+    for col in df[df[TAG_SS] > 0].index:
         AmtRes += df.iat[col, COL_SA]
         for row in AmtMat[AmtMat.iloc[:, col] != 0].index:
             if AmtMat.iat[row, col] != 0:
@@ -164,7 +164,7 @@ class Tab:
             if rects:
                 raise ValueError('A finite number is required.', rects)
 
-        v = ((df.iloc[:, COL_BA] != 0) | (df.iloc[:, COL_BS] != 0)) & ((df.iloc[:, COL_SA] != 0) | (df.iloc[:, COL_SS] != 0))
+        v = ((df[TAG_BA] != 0) | (df[TAG_BS] != 0)) & ((df[TAG_SA] != 0) | (df[TAG_SS] != 0))
         for row in v[v].index:
             rects.add((COL_BA, row, 4, 1))
         if rects:
@@ -177,26 +177,26 @@ class Tab:
             if rects:
                 raise ValueError('Negative Share is not allowed.', rects)
 
-        v = data.iloc[:, COL_SA].isna() & ~data.iloc[:, COL_SS].isna()
+        v = data[TAG_SA].isna() & ~data[TAG_SS].isna()
         for row in v[v].index:
             rects.add((col[0], row, 1, 1))
         if rects:
             raise ValueError('Amount data is missing.', rects)
 
-        for col in {(COL_BA, COL_BS), (COL_SA, COL_SS)}:
-            v = (df.iloc[:, col[0]] / df.iloc[:, col[1]]).isin([float('inf')])
+        for col in {(TAG_BA, TAG_BS), (TAG_SA, TAG_SS)}:
+            v = (df[col[0]] / df[col[1]]).isin([float('inf')])
             for row in v[v].index:
                 rects.add((col[0], row, 2, 1))
             if rects:
                 raise ValueError('Amount/Share must be finite.', rects)
 
-        v = (df.iloc[:, COL_BS] == 0) & (df.iloc[:, COL_SS] == 0)
+        v = (df[TAG_BS] == 0) & (df[TAG_SS] == 0)
         for row in v[v].index:
             rects.add((COL_BA, row, COL_SS - COL_DT, 1))
         if rects:
             raise ValueError('Transaction data is required.', rects)
 
-        if (df.iloc[:, COL_DT].sort_values(ignore_index=True) != df.iloc[:, COL_DT]).any():
+        if (df[TAG_DT].sort_values(ignore_index=True) != df[TAG_DT]).any():
             dt_0 = to_datetime(0)
             for row in range(rows):
                 dt = to_datetime(df.iat[row, COL_DT])
@@ -212,7 +212,7 @@ class Tab:
         _data = data.copy()
         df = data.fillna(0.)
 
-        Shr = df.iloc[:, COL_BS] - df.iloc[:, COL_SS]
+        Shr = df[TAG_BS] - df[TAG_SS]
         HoldShrRes = 0
         Amt = 0
         HoldMat = DataFrame(index=range(rows), columns=range(2), dtype='float64')
@@ -220,7 +220,7 @@ class Tab:
             HoldShrRes = round(HoldShrRes + Shr.iat[row], TXN_DIGITS)
             HoldMat.iat[row, 0] = HoldShrRes
             if HoldShrRes < 0:
-                _data.iloc[:, COL_HS:COL_RR] = HoldMat
+                _data[[TAG_HS, TAG_HP]] = HoldMat
                 raise ValueError('Overselling is not allowed.', {(COL_SS, row, 1, 1)})
             if df.iat[row, COL_BS]:
                 Amt += df.iat[row, COL_BA]
@@ -228,8 +228,8 @@ class Tab:
                 Amt *= HoldShrRes / (df.iat[row, COL_SS] + HoldShrRes)
             if HoldShrRes:
                 HoldMat.iat[row, 1] = Amt / HoldShrRes
-        _data.iloc[:, COL_HS:COL_RR] = HoldMat
-        df.iloc[:, COL_HS:COL_RR] = HoldMat.fillna(0.)
+        _data[[TAG_HS, TAG_HP]] = HoldMat
+        df[[TAG_HS, TAG_HP]] = HoldMat.fillna(0.)
 
         AmtMat = getAmtMat(df)
 
@@ -237,7 +237,7 @@ class Tab:
         RateSz = 0
         AmtResPrev = 0.
         RatePrev = 0.
-        for col in df[df.iloc[:, COL_SS] > 0].index:
+        for col in df[df[TAG_SS] > 0].index:
             Rate = df.iat[col, COL_RR]
             for count in range(self.__MaxCount):
                 if Rate < -1:
@@ -264,7 +264,7 @@ class Tab:
                 raise RuntimeError(f'Cannot find the Rate of Return in {self.__MaxCount} rounds.')
             RateMat.iat[col] = Rate
             RateSz += 1
-        _data.iloc[:, COL_RR] = RateMat
+        _data[TAG_RR] = RateMat
 
         if RateSz == 0:
             _avg = NAN
@@ -462,7 +462,7 @@ class Mod(Tab, basMod):
                     row += 1
             if not self.__tab.iloc[-1].isna().all():
                 df = self.__tab.sort_values([TAG_DT, TAG_SS], ignore_index=True)
-                if (self.__tab.iloc[:, COL_DT] != df.iloc[:, COL_DT]).any() and self.isValid(df):
+                if (self.__tab[TAG_DT] != df[TAG_DT]).any() and self.isValid(df):
                     self.__tab = df
                     mute = False
                 elif data is not None:

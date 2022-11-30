@@ -121,7 +121,7 @@ class Tab:
                 else:
                     raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
 
-        if (df.iloc[:, COL_DT].sort_values(ascending=False, ignore_index=True) != df.iloc[:, COL_DT]).any():
+        if (df[TAG_DT].sort_values(ascending=False, ignore_index=True) != df[TAG_DT]).any():
             dt_0 = to_datetime(0)
             for row in range(rows):
                 dt = to_datetime(df.iat[row, COL_DT])
@@ -202,15 +202,15 @@ class Tab:
             self.__txn_tab = txn_tab.copy()
         if not (data is None and txn_tab is None) and self.__tab.index.size:
             self.__tab.iloc[:, COL_HA:] = DataFrame([[0., 0., NAN, NAN, NAN, NAN]], range(self.__tab.index.size))
-            ba = self.__txn_tab.iloc[:, txn.COL_BA]
-            sa = self.__txn_tab.iloc[:, txn.COL_SA]
+            ba = self.__txn_tab[txn.TAG_BA]
+            sa = self.__txn_tab[txn.TAG_SA]
             txnAmt = ba.fillna(0.) - sa.fillna(0.)
             txnAmt[ba.isna() & sa.isna()] = NAN
-            txnShr = self.__txn_tab.iloc[:, txn.COL_BS].fillna(0.) - self.__txn_tab.iloc[:, txn.COL_SS].fillna(0.)
+            txnShr = self.__txn_tab[txn.TAG_BS].fillna(0.) - self.__txn_tab[txn.TAG_SS].fillna(0.)
             row_HS = 0
             row_HP = 0
             for i in range(self.__txn_tab.index.size - 1, -1, -1):
-                df = self.__tab[self.__tab.iloc[:, COL_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
+                df = self.__tab[self.__tab[TAG_DT] == self.__txn_tab.iat[i, txn.COL_DT]]
                 if df.empty:
                     raise ValueError(DATE_ERR, {(txn.COL_DT, i, 1, 1)})
                 self.__tab.iloc[row_HS:df.index[-1] + 1, COL_HA] = self.__tab.iloc[row_HS:df.index[-1] + 1, COL_UV] \

@@ -125,7 +125,7 @@ class Tab:
             if isna(s.iat[COL_IA]):
                 s.iat[COL_IA] = 0.
             s.iat[COL_HA] = val_tab.iat[0, val.COL_HA]
-            s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab.iloc[:, txn.COL_SA].sum() - txn_tab.iloc[:, txn.COL_BA].sum()
+            s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab[txn.TAG_SA].sum() - txn_tab[txn.TAG_BA].sum()
             if txn_tab.iat[-1, txn.COL_HS]:
                 t = txn.Tab(concat([txn_tab, DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
@@ -191,7 +191,7 @@ class Tab:
             data = self.__tab.iloc[item]
         elif type(item) is str:
             typ, code = group_info(item)[:2]
-            v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
+            v = (self.__tab[TAG_AC] == code) & (self.__tab[TAG_AT] == typ)
             data = self.__tab[v]
         else:
             raise TypeError(f'Unsupported data type [{type(item)}].')
@@ -213,7 +213,7 @@ class Tab:
             self.__db.remove(group)
         elif type(item) is str:
             typ, code = group_info(item)[:2]
-            v = (self.__tab.iloc[:, COL_AC] == code) & (self.__tab.iloc[:, COL_AT] == typ)
+            v = (self.__tab[TAG_AC] == code) & (self.__tab[TAG_AT] == typ)
             row = self.__tab[v].index
             self.__tab = self.__tab.drop(index=row).reset_index(drop=True)
             self.__db.remove(item)
@@ -227,7 +227,7 @@ class Tab:
     def import_table(self, file: str, upd: bool = True) -> DataFrame:
         tab = dfImport(file).astype(COL_TYP)
         self.__tab = concat(
-            [self.__tab, tab.iloc[:, :COL_AN]], ignore_index=True
+            [self.__tab, tab[[TAG_AT, TAG_AC, TAG_AN]]], ignore_index=True
         ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
             self.__update()
@@ -352,7 +352,7 @@ class Mod(Tab, basMod):
                 self._raise(f'Group error [{data}].')
                 return
             tab = self.get()
-            v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
+            v = (tab[TAG_AC] == code) & (tab[TAG_AT] == typ)
             if v.any():
                 data  = v[v].index[0]
             else:
@@ -446,7 +446,7 @@ class Mod(Tab, basMod):
         else:
             tab = self.get()
             cols = tab.columns.size
-            v = tab.iloc[:, COL_AC] == code
+            v = tab[TAG_AC] == code
             if v.any():
                 row = v[v].index[0]
                 self.adjColor(y0=row, y1=row + 1)
@@ -462,7 +462,7 @@ class Mod(Tab, basMod):
                 self._raise(f'Group error [{data}].')
                 return
             tab = self.get()
-            v = (tab.iloc[:, COL_AC] == code) & (tab.iloc[:, COL_AT] == typ)
+            v = (tab[TAG_AC] == code) & (tab[TAG_AT] == typ)
             if v.any():
                 data  = v[v].index[0]
             else:
