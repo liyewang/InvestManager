@@ -12,6 +12,8 @@ TAG_BA = 'Buying Amount'
 TAG_BS = 'Buying Share'
 TAG_SA = 'Selling Amount'
 TAG_SS = 'Selling Share'
+TAG_DA = 'Dividend Amount'
+TAG_DS = 'Dividend Share'
 TAG_HS = 'Holding Share'
 TAG_HP = 'Holding Price'
 TAG_RR = 'Rate of Return'
@@ -21,9 +23,11 @@ COL_BA = 1
 COL_BS = 2
 COL_SA = 3
 COL_SS = 4
-COL_HS = 5
-COL_HP = 6
-COL_RR = 7
+COL_DA = 5
+COL_DS = 6
+COL_HS = 7
+COL_HP = 8
+COL_RR = 9
 
 COL_TAG = [
     TAG_DT,
@@ -31,6 +35,8 @@ COL_TAG = [
     TAG_BS,
     TAG_SA,
     TAG_SS,
+    TAG_DA,
+    TAG_DS,
     TAG_HS,
     TAG_HP,
     TAG_RR,
@@ -42,6 +48,8 @@ COL_TYP = {
     TAG_BS: 'float64',
     TAG_SA: 'float64',
     TAG_SS: 'float64',
+    TAG_DA: 'float64',
+    TAG_DS: 'float64',
     TAG_HS: 'float64',
     TAG_HP: 'float64',
     TAG_RR: 'float64',
@@ -49,38 +57,37 @@ COL_TYP = {
 
 TXN_DIGITS = 2
 
-def getAmtMat(df: DataFrame) -> DataFrame:
+def getAmtMat(tab: DataFrame) -> DataFrame:
+    df = tab.copy()
     rows = df.index.size
-    Shr = df[TAG_BS] - df[TAG_SS]
     AmtMat = DataFrame(data=0, index=range(rows), columns=range(rows), dtype='float64')
     row_0 = 0
-    BuyShrExp = 0
-    ShrBal = 0
     for col in range(rows):
-        ShrBal = round(ShrBal + Shr.iat[col], TXN_DIGITS)
-        if ShrBal < 0:
-            raise ValueError(f'Share balance cannot be negative ({ShrBal})', {(COL_SS, col, 1, 1)})
-        elif df.iat[col, COL_SS] > 0:
+        if df.iat[col, COL_SS] != 0:
             SelShrRes = df.iat[col, COL_SS]
-            for row in range(row_0, col + 1):
+            for row in range(row_0, col):
                 BuyShr = df.iat[row, COL_BS]
                 if BuyShr > 0:
-                    if SelShrRes > BuyShr - BuyShrExp:
-                        BuyShrExp = BuyShr - BuyShrExp
-                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * BuyShrExp / BuyShr
-                        SelShrRes -= BuyShrExp
-                        BuyShrExp = 0
+                    if SelShrRes > BuyShr:
+                        AmtMat.iat[row, col] = df.iat[row, COL_BA]
+                        SelShrRes -= BuyShr
                         row_0 = row + 1
-                    elif SelShrRes == BuyShr - BuyShrExp:
-                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
-                        BuyShrExp = SelShrRes
-                        row_0 = row + 1
-                        break
                     else:
-                        AmtMat.iat[row, col] = df.iat[row, COL_BA] * SelShrRes / BuyShr
-                        BuyShrExp += SelShrRes
+                        BuyAmtExp = df.iat[row, COL_BA] * SelShrRes / BuyShr
+                        AmtMat.iat[row, col] = BuyAmtExp
+                        df.iat[row, COL_BA] -= BuyAmtExp
+                        df.iat[row, COL_BS] -= SelShrRes
                         row_0 = row
                         break
+        elif df.iat[col, COL_DS] != 0:
+            DivShr = df.iat[col, COL_DS]
+            BuyShrSum = df.iloc[row_0:col, COL_BS].sum()
+            if df.iat[col, COL_DA] == 0:
+                df.iloc[row_0:col, COL_BS] *= DivShr / BuyShrSum + 1
+            else:
+                BuyAmtExp = df.iloc[row_0:col, COL_BA] * (DivShr / (BuyShrSum + DivShr))
+                AmtMat.iloc[row_0:col, col] = BuyAmtExp
+                df.iloc[row_0:col, COL_BA] -= BuyAmtExp
     return AmtMat
 
 def getAmtRes(df: DataFrame, AmtMat: DataFrame, Rate: float) -> float:
@@ -89,9 +96,9 @@ def getAmtRes(df: DataFrame, AmtMat: DataFrame, Rate: float) -> float:
     else:
         RateSign = 1
     AmtRes = 0.
-    for col in df[df[TAG_SS] > 0].index:
-        AmtRes += df.iat[col, COL_SA]
-        for row in AmtMat[AmtMat.iloc[:, col] != 0].index:
+    for col in df[(df[TAG_SS] != 0) | (df[TAG_DA] != 0)].index:
+        AmtRes += df.iat[col, COL_SA] + df.iat[col, COL_DA]
+        for row in AmtMat[AmtMat[col] != 0].index:
             if AmtMat.iat[row, col] != 0:
                 AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
             elif df.iat[row, COL_BA] != 0:
@@ -138,9 +145,11 @@ class Tab:
         v = Series(data.index != range(rows))
         if v.any():
             raise ValueError('Index error.', {(-1, v[v].index[0], 1, 1)})
-        df = data.fillna(0.)
 
-        if data.dtypes[COL_DT] != 'datetime64[ns]':
+        v = data[TAG_DT].isna()
+        if data.dtypes[COL_DT] != 'datetime64[ns]' or v.any():
+            for row in v[v].index:
+                rects.add((COL_DT, row, 1, 1))
             for row in range(rows):
                 if type(data.iat[row, COL_DT]) is not Timestamp:
                     rects.add((COL_DT, row, 1, 1))
@@ -158,50 +167,48 @@ class Tab:
                     raise ValueError('Numeric type is required.', rects)
                 else:
                     raise ValueError('Numeric type is required.', {(col, 0, 1, rows)})
-            v = df.iloc[:, col].isin([float('inf'), NAN])
+            v = data.iloc[:, col].isin([float('inf')])
             for row in v[v].index:
                 rects.add((col, row, 1, 1))
             if rects:
                 raise ValueError('A finite number is required.', rects)
 
-        v = ((df[TAG_BA] != 0) | (df[TAG_BS] != 0)) & ((df[TAG_SA] != 0) | (df[TAG_SS] != 0))
+        s = sum([data[t].isna().astype('int') for t in (TAG_BS, TAG_SS, TAG_DS)])
+        v = s != 2
         for row in v[v].index:
-            rects.add((COL_BA, row, 4, 1))
+            rects.add((COL_BA, row, COL_DS - COL_DT, 1))
         if rects:
-            raise ValueError('Buying and Selling data must be in separated rows.', rects)
+            raise ValueError('Single transaction data is required.', rects)
 
-        for col in {COL_BS, COL_SS}:
-            v = df.iloc[:, col] < 0
-            for row in v[v].index:
-                rects.add((col, row, 1, 1))
-            if rects:
-                raise ValueError('Negative Share is not allowed.', rects)
-
-        v = data[TAG_SA].isna() & ~data[TAG_SS].isna()
+        v = (~data[TAG_DA].isna()) & data[TAG_DS].isna()
         for row in v[v].index:
-            rects.add((col[0], row, 1, 1))
+            rects.add((COL_DA, row, COL_DS - COL_SS, 1))
         if rects:
-            raise ValueError('Amount data is missing.', rects)
+            raise ValueError('Share data is missing.', rects)
 
         for col in {(TAG_BA, TAG_BS), (TAG_SA, TAG_SS)}:
-            v = (df[col[0]] / df[col[1]]).isin([float('inf')])
+            v = data[col[0]].isna() ^ data[col[1]].isna()
+            for row in v[v].index:
+                rects.add((col[0], row, 2, 1))
+            if rects:
+                raise ValueError('Amount or Share data is missing.', rects)
+            v = data[col[1]] <= 0
+            for row in v[v].index:
+                rects.add((col[1], row, 1, 1))
+            if rects:
+                raise ValueError('Share data must be positive.', rects)
+            v = (data[col[0]] / data[col[1]]).isin([float('inf')])
             for row in v[v].index:
                 rects.add((col[0], row, 2, 1))
             if rects:
                 raise ValueError('Amount/Share must be finite.', rects)
 
-        v = (df[TAG_BS] == 0) & (df[TAG_SS] == 0)
-        for row in v[v].index:
-            rects.add((COL_BA, row, COL_SS - COL_DT, 1))
-        if rects:
-            raise ValueError('Transaction data is required.', rects)
-
-        if (df[TAG_DT].sort_values(ignore_index=True) != df[TAG_DT]).any():
+        if not data[TAG_DT].equals(data[TAG_DT].sort_values(ignore_index=True)):
             dt_0 = to_datetime(0)
             for row in range(rows):
-                dt = to_datetime(df.iat[row, COL_DT])
+                dt = to_datetime(data.iat[row, COL_DT])
                 if dt < dt_0:
-                    raise ValueError('Date data must be ascending.', {(COL_DT, row, 1, 1)})
+                    raise ValueError('Dates must be ascending.', {(COL_DT, row, 1, 1)})
                 dt_0 = dt
 
         return
@@ -212,20 +219,23 @@ class Tab:
         _data = data.copy()
         df = data.fillna(0.)
 
-        Shr = df[TAG_BS] - df[TAG_SS]
+        Shr = df[TAG_DS].copy()
+        Shr[~data[TAG_DA].isna()] = 0
+        Shr += df[TAG_BS] - df[TAG_SS]
         HoldShrRes = 0
         Amt = 0
         HoldMat = DataFrame(index=range(rows), columns=range(2), dtype='float64')
         for row in range(rows):
             HoldShrRes = round(HoldShrRes + Shr.iat[row], TXN_DIGITS)
             HoldMat.iat[row, 0] = HoldShrRes
-            if HoldShrRes < 0:
-                _data[[TAG_HS, TAG_HP]] = HoldMat
-                raise ValueError('Overselling is not allowed.', {(COL_SS, row, 1, 1)})
+            assert HoldShrRes >=0, ('Selling share exceeded.', {(COL_SS, row, 1, 1)})
             if df.iat[row, COL_BS]:
                 Amt += df.iat[row, COL_BA]
-            else:
+            elif df.iat[row, COL_SS]:
                 Amt *= HoldShrRes / (df.iat[row, COL_SS] + HoldShrRes)
+            elif df.iat[row, COL_DA]:
+                Amt -= df.iat[row, COL_DA]
+                assert Amt > 0, ('Dividend amount exceeded.', {(COL_DA, row, 1, 1)})
             if HoldShrRes:
                 HoldMat.iat[row, 1] = Amt / HoldShrRes
         _data[[TAG_HS, TAG_HP]] = HoldMat
@@ -237,15 +247,15 @@ class Tab:
         RateSz = 0
         AmtResPrev = 0.
         RatePrev = 0.
-        for col in df[df[TAG_SS] > 0].index:
+        for col in df[(df[TAG_SS] != 0) | (df[TAG_DA] != 0)].index:
             Rate = df.iat[col, COL_RR]
             for count in range(self.__MaxCount):
                 if Rate < -1:
                     RateSign = -1
                 else:
                     RateSign = 1
-                AmtRes = df.iat[col, COL_SA]
-                for row in AmtMat[AmtMat.iloc[:, col] != 0].index:
+                AmtRes = df.iat[col, COL_SA] + df.iat[col, COL_DA]
+                for row in AmtMat[AmtMat[col] != 0].index:
                     if AmtMat.iat[row, col]:
                         AmtRes -= AmtMat.iat[row, col] * (RateSign * abs(1 + Rate) ** ((df.iat[col, COL_DT] - df.iat[row, COL_DT]).days / 365))
                     elif df.iat[row, COL_BA]:
@@ -559,4 +569,16 @@ if __name__ == '__main__':
     # print(t)
     # print(t.avgRate())
 
-    d.save()
+    # count = 0
+    # for grp, tab in d.get(key=KEY_TXN).items():
+    #     assert type(tab) is DataFrame
+    #     if tab.columns.tolist() == [TAG_DT,TAG_BA,TAG_BS,TAG_SA,TAG_SS,TAG_HS,TAG_HP,TAG_RR]:
+    #         tab.insert(COL_DA, TAG_DA, NAN)
+    #         tab.insert(COL_DS, TAG_DS, NAN)
+    #         v = tab[TAG_BA].isna() & (~tab[TAG_BS].isna())
+    #         for row in v[v].index:
+    #             tab.loc[row, TAG_DS] = tab.loc[row, TAG_BS]
+    #             tab.loc[row, TAG_BS] = NAN
+    #         d.set(grp, KEY_TXN, tab)
+
+    # d.save()

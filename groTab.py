@@ -98,14 +98,16 @@ class Tab:
                     s = val_tab[~v].iloc[-1]
                     if p.iat[val.COL_HS]:
                         df = concat([DataFrame([[
-                            s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UV], p.iat[val.COL_HS], 0., 0., 0., 0., 0.
+                            s.iat[val.COL_DT], p.iat[val.COL_HS] * s.iat[val.COL_UV], p.iat[val.COL_HS],
+                            0., 0., 0., 0., 0., 0., 0.
                         ]], columns=txn.COL_TAG), df], ignore_index=True).astype(txn.COL_TYP)
                 v = val_tab[val.TAG_DT] <= _end
                 if v.any():
                     v = val_tab[v].iloc[0]
                     if v.iat[val.COL_HS]:
                         df = concat([df, DataFrame([[
-                            v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS], 0., 0., 0.
+                            v.iat[val.COL_DT], 0., 0., v.iat[val.COL_HA], v.iat[val.COL_HS],
+                            0., 0., 0., 0., 0.
                         ]], columns=txn.COL_TAG)], ignore_index=True).astype(txn.COL_TYP)
                 if df.index.size:
                     dfs.append(df)

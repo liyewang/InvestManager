@@ -125,7 +125,7 @@ class Tab:
             if isna(s.iat[COL_IA]):
                 s.iat[COL_IA] = 0.
             s.iat[COL_HA] = val_tab.iat[0, val.COL_HA]
-            s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab[txn.TAG_SA].sum() - txn_tab[txn.TAG_BA].sum()
+            s.iat[COL_AP] = val_tab.iat[0, val.COL_HA] + txn_tab[txn.TAG_SA].sum() + txn_tab[txn.TAG_DA].sum() - txn_tab[txn.TAG_BA].sum()
             if txn_tab.iat[-1, txn.COL_HS]:
                 t = txn.Tab(concat([txn_tab, DataFrame([[
                     val_tab.iat[0, val.COL_DT], val_tab.iat[0, val.COL_HA], txn_tab.iat[-1, txn.COL_HS]
