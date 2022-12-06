@@ -33,6 +33,8 @@ class Win(QMainWindow):
             grp = wid.group
             while self.__tab.count() > 1:
                 self.__tab.removeTab(1)
+            self.__menuData.clear()
+            self.__home.setDataMenu(self.__menuData)
             self.__home.refresh(grp, False)
         return
 
