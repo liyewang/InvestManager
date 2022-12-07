@@ -50,6 +50,11 @@ COL_TYP = {
     TAG_AR:'float64',
 }
 
+SORT_TAGS = [
+    TAG_IA,
+    TAG_HA,
+]
+
 DUP_ERR = 'Duplicated asset is not allowed.'
 
 class Tab:
@@ -165,7 +170,7 @@ class Tab:
                     group = v.get_group()
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
-        self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
+        self.__tab = self.__tab.sort_values(SORT_TAGS, ascending=False, ignore_index=True)
         return
 
     def update(self, idx: int | None = None, online: bool = True) -> None:
@@ -179,9 +184,10 @@ class Tab:
                 raise ValueError(f'DB error in {group}/{KEY_INF}\n{df}')
             df = concat([DataFrame([group_info(group)], [0], [TAG_AT, TAG_AC, TAG_AN]), df], axis=1)
             self.__tab = concat([self.__tab, df], ignore_index=True)
-        self.__tab = self.__tab.sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
         if upd:
             self.__update(online=online)
+        else:
+            self.__tab = self.__tab.sort_values(SORT_TAGS, ascending=False, ignore_index=True)
         return self.__tab.copy()
 
     def get(self, item: int | str | None = None) -> DataFrame | Series:
@@ -228,9 +234,11 @@ class Tab:
         tab = dfImport(file).astype(COL_TYP)
         self.__tab = concat(
             [self.__tab, tab[[TAG_AT, TAG_AC, TAG_AN]]], ignore_index=True
-        ).drop_duplicates([TAG_AT, TAG_AC]).sort_values([TAG_HA, TAG_AT, TAG_AC], ascending=False, ignore_index=True)
+        ).drop_duplicates([TAG_AT, TAG_AC], ignore_index=True)
         if upd:
             self.__update()
+        else:
+            self.__tab = self.__tab.sort_values(SORT_TAGS, ascending=False, ignore_index=True)
         return self.__tab.copy()
 
     def export_table(self, file: str, data: bool = True) -> None:
