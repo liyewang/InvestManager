@@ -222,8 +222,8 @@ class Tab:
         Shr = df[TAG_DS].copy()
         Shr[~data[TAG_DA].isna()] = 0
         Shr += df[TAG_BS] - df[TAG_SS]
-        HoldShrRes = 0
-        Amt = 0
+        HoldShrRes = 0.
+        Amt = 0.
         HoldMat = DataFrame(index=range(rows), columns=range(2), dtype='float64')
         for row in range(rows):
             HoldShrRes = round(HoldShrRes + Shr.iat[row], TXN_DIGITS)

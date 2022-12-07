@@ -198,8 +198,8 @@ class assDat:
         return self.__mci.copy()
 
 def trade_dates(
-        sdate: Timestamp | None = None,
-        edate: Timestamp | None = None
+    sdate: Timestamp | None = None,
+    edate: Timestamp | None = None
 ) -> Series:
     url = 'https://api.doctorxiong.club/v1/stock/kline/day?code=sh000001'
     if sdate is not None:

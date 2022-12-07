@@ -163,9 +163,8 @@ class Tab:
                     self.__grp = group_new
                 if not (info.netWorth.empty and info.MCIncome.empty):
                     if self.__type == GRP_FUND_CASH:
-                        df = info.MCIncome
                         tab = []
-                        for d, i in df[[asi.TAG_DT, asi.TAG_MI]].to_numpy():
+                        for d, i in info.MCIncome[[asi.TAG_DT, asi.TAG_MI]].to_numpy():
                             w *= 1 + i * 1e-4
                             tab.append([d, 1., w, 0., 0., NAN, NAN, NAN, NAN])
                         tab = DataFrame(tab)
@@ -182,10 +181,10 @@ class Tab:
                             if date in dates:
                                 i += 1
                             else:
-                                tfill = DataFrame([tab.iloc[i]])
+                                tfill = tab.iloc[[i]]
                                 tfill.iat[0, COL_DT] = date
-                                tfill.iat[0, COL_TA] = 0.
-                                tfill.iat[0, COL_TS] = 0.
+                                tfill.iat[0, COL_TA] = NAN
+                                tfill.iat[0, COL_TS] = NAN
                                 tab = concat([tab, tfill])
                     if sdate is not None:
                         tab = tab[tab[TAG_DT] > sdate]
@@ -220,7 +219,7 @@ class Tab:
                 self.__tab.iat[df.index[-1], COL_TA] = txnAmt.iat[i]
                 self.__tab.iat[df.index[-1], COL_TS] = txnShr.iat[i]
                 row_HS = df.index[-1] + 1
-                if txnShr.iat[i] > 0 and not isna(self.__txn_tab.iat[i, txn.COL_BA]):
+                if txnShr.iat[i] > 0:
                     self.__tab.iloc[row_HP:df.index[-1] + 1, COL_HP] = self.__txn_tab.iat[i, txn.COL_HP] \
                         + df.iat[0, COL_NV] - df.iat[0, COL_UV]
                     row_HP = df.index[-1] + 1
