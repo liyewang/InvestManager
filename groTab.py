@@ -1,4 +1,4 @@
-from pandas import Timestamp, concat, to_numeric
+from pandas import Timestamp, concat, date_range, to_numeric
 from hashlib import sha512
 from sys import exc_info, byteorder
 from db import *
@@ -144,6 +144,7 @@ class Tab:
             assert type(v) is DataFrame
             dates.update(v[val.TAG_DT])
         dates = sorted(dates)
+        d1 = dates[-1]
         vals = DataFrame(columns=val.COL_TAG).astype(val.COL_TYP)
         for v in Vals.values():
             assert type(v) is DataFrame
@@ -151,6 +152,15 @@ class Tab:
                 continue
             for i in v[(v[val.TAG_TS] < 0) & v[val.TAG_UP].isna()].index.sort_values(ascending=False):
                 v.at[i, val.TAG_UP] = v.at[i + 1, val.TAG_UP]
+            d0 = v.iat[0, val.COL_DT]
+            if d0 < d1:
+                vfill = v.iloc[0].copy()
+                vfill[val.TAG_TA] = NAN
+                vfill[val.TAG_TS] = NAN
+                dfill = date_range(d1, d0, freq='-1D', inclusive='left')
+                vfill = DataFrame([vfill], index=range(dfill.size))
+                vfill[val.TAG_DT] = dfill
+                v = concat([vfill, v], ignore_index=True)
             vals = concat([vals, v], ignore_index=True)
         _tab = Tab.sort_values(TAG_DT, ignore_index=True)
         dates_res1 = [d for d in dates if d < Start]
@@ -222,6 +232,8 @@ class Tab:
             else:
                 edate = Timestamp(yr, qt * 3, 30)
             return sdate, edate
+        if Tab.empty:
+            return Series([], dtype='float64'), Series([], dtype='float64')
         ts0 = Tab.iat[-1, COL_DT]
         ts1 = Tab.iat[0, COL_DT]
         yr0, qt0, yr1, qt1 = ts2qt(ts0, ts1)
@@ -229,7 +241,10 @@ class Tab:
         edate = qt2ts(yr1, qt1)[1]
         yrr = {t:r for t, r in YrR.to_dict().items() if t >= sdate and t <= edate}
         qtr = {t:r for t, r in QtR.to_dict().items() if t >= sdate and t <= edate}
-        start = Start.replace(month=1, day=1)
+        if Start.year > TS_ORI.year:
+            start = Start.replace(month=1, day=1)
+        else:
+            start = Start
         if start > ts0:
             ts0 = start
         yr0, qt0, yr1, qt1 = ts2qt(ts0, ts1)
@@ -286,9 +301,11 @@ class Tab:
                                 assert type(val_old) is DataFrame
                                 if not val_new.equals(val_old):
                                     if val_new.index.size > val_old.index.size:
-                                        val_new = val_new.iloc[val_new.index.size - val_old.index.size:]
+                                        i = val_new.index.size - val_old.index.size
+                                        val_new = val_new.iloc[i:].reset_index(drop=True)
                                     else:
-                                        val_old = val_old.iloc[val_old.index.size - val_new.index.size:]
+                                        i = val_old.index.size - val_new.index.size
+                                        val_old = val_old.iloc[i:].reset_index(drop=True)
                                     v = (val_new != val_old).any(axis=1)
                                     if any(v):
                                         i = v[v].index[-1]
