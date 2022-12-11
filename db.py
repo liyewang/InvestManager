@@ -38,6 +38,9 @@ GRP_FUND_BOND = 'FundBond'
 GRP_FUND_STOC = 'FundStock'
 GRP_FUND_CMDT = 'FundCmdty'
 
+KEY_DAY = 'DAY'
+GRP_TRADEDATE = 'TradeDate'
+
 GRP_HOME = 'Home'
 GRP_CONF = 'Conf'
 
@@ -56,6 +59,7 @@ CLS_VALID = {
     GRP_FUND_BOND,
     GRP_FUND_STOC,
     GRP_FUND_CMDT,
+    GRP_TRADEDATE,
     GRP_HOME,
     GRP_CONF,
 }
@@ -162,7 +166,7 @@ class db:
             for k, v in self.__db.items():
                 if type(v) is dict and key in v:
                     data[k] = v[key].copy()
-        elif group in CLS_ASSET:
+        elif group in CLS_VALID:
             for k, v in self.__db.items():
                 if group_info(k)[0] == group:
                     if key is None:
@@ -203,6 +207,10 @@ class db:
         if self.__db:
             if group == '/':
                 self.__db.clear()
+            elif group in CLS_VALID:
+                grps = [k for k in self.__db if group_info(k)[0] == group]
+                for grp in grps:
+                    del self.__db[grp]
             elif group in self.__db:
                 del self.__db[group]
             self.__changed = True

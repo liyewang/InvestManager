@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 from pandas import concat
 from sys import exc_info
+from assInf import trade_dates
 from db import *
 from basTab import *
 from dfIO import *
@@ -171,6 +172,25 @@ class Tab:
                 self.__tab.iloc[row, [COL_IA, COL_HA, COL_AP]] = 0.
                 self.__db.set(group, KEY_INF, DataFrame([self.__tab.iloc[row, COL_IA:]], [0]))
         self.__tab = self.__tab.sort_values(SORT_TAGS, ascending=False, ignore_index=True)
+        return
+
+    def updateTradeDate(self) -> None:
+        data = self.__db.get(GRP_TRADEDATE, KEY_DAY)
+        d0 = Timestamp.now().date()
+        if data:
+            for grp, dates in data.items():
+                d1 = Timestamp(group_info(grp)[1]).date()
+                if d1 < d0:
+                    d2 = dates.iat[-1]
+                    dfill = trade_dates(d2)
+                    dates = concat([dates, dfill[dfill > d2]], sort=True, ignore_index=True)
+                    break
+                else:
+                    return
+        else:
+            dates = trade_dates()
+        self.__db.remove(GRP_TRADEDATE)
+        self.__db.set(group_make(GRP_TRADEDATE, d0.strftime(r'%Y%m%d')), KEY_DAY, dates)
         return
 
     def update(self, idx: int | None = None, online: bool = True) -> None:
@@ -424,6 +444,11 @@ class Mod(Tab, basMod):
             return None
         self.__db = data
         if upd:
+            if online:
+                try:
+                    self.updateTradeDate()
+                except:
+                    self._raise(exc_info()[1].args)
             self.update(online=online)
         else:
             basMod.table(self, self.get())
